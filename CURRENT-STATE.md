@@ -2,7 +2,7 @@
 
 ## Nguồn và mức xác minh
 
-Tổng hợp từ báo cáo Codex chạy trên NAS được người dùng chuyển tiếp trong hội thoại. Người ghi repo xác minh được repo ban đầu rỗng qua GitHub; không trực tiếp truy cập host, wrapper hoặc log. Các đường dẫn dưới đây là đường dẫn host được báo cáo, không phải file đã được đưa vào repo.
+Tổng hợp từ báo cáo Codex chạy trên NAS được người dùng chuyển tiếp trong hội thoại. Phiên ChatGPT không trực tiếp SSH vào NAS. Ngày 27/10/2026 (Asia/Ho_Chi_Minh), người dùng chuyển tiếp output --help/status, symlink và toàn bộ wrapper. Bản lưu src/gemini-task có SHA-256 khớp byte với checksum host được chuyển tiếp: 29481dc45c6461b5f993a29f7caba32871cd826c6885abcf99a4928652c8ec00. Đây là bằng chứng đối chiếu nội dung chuyển tiếp, không phải xác minh trực tiếp filesystem NAS.
 
 ## Môi trường được báo cáo
 
@@ -11,13 +11,13 @@ Tổng hợp từ báo cáo Codex chạy trên NAS được người dùng chuy�
 - Wrapper: /home/admin/bin/gemini-task; ~/.local/bin/gemini-task trỏ wrapper mới.
 - HOME=/home/admin, uid=1000 trong shell Codex.
 - Key store: /home/admin/.config/gemini-task/keys.json; thư mục 700, file trạng thái/key/lock 600 theo báo cáo.
-- Tài liệu host cũ: /home/admin/0219nas-aio-issue12/CONFIG-AND-ACCESS.md và AGENTS.md. Repo này là nơi tổng hợp bối cảnh mới; chưa chuyển mã hay sửa checkout host.
+- Tài liệu host cũ: /home/admin/0219nas-aio-issue12/CONFIG-AND-ACCESS.md và AGENTS.md. Repo này đã lưu bản nguồn wrapper nhận qua chat; chưa sửa checkout hoặc runtime host.
 
 ## Hành vi wrapper
 
-Gọi Gemini API trực tiếp; không qua CLI/OAuth. Prompt từ stdin/file; --key keyN khóa vào một nguồn, không tự failover. stdout chỉ câu trả lời được buffer đầy đủ; stderr trạng thái/lỗi đã lọc. Không khai báo tools. Có timeout tổng, retry giới hạn và khóa/ghi trạng thái an toàn khi đồng thời.
+Gọi Gemini API trực tiếp; không qua CLI/OAuth. Prompt từ stdin/file; --key keyN khóa vào một nguồn, không tự failover. stdout được buffer trước khi in; chưa bảo đảm câu trả lời hoàn chỉnh về nội dung (MAX_TOKENS vẫn được nhận là thành công). stderr không in body lỗi, nhưng trường error.status chưa được lọc ký tự/giới hạn. Không khai báo tools. Có timeout tổng, retry giới hạn và khóa/ghi trạng thái an toàn khi đồng thời.
 
-Tối đa key1…key5; hiện báo cáo đã lưu key1 và key2. keys add chỉ hỏi key ẩn; member/quota-group mặc định alias, ưu tiên theo số, project ID trống (unknown). Không bắt nhập metadata. Người dùng xác nhận 5 nguồn dự kiến thuộc 5 project độc lập; chưa nhập đủ 5 và chưa xác minh danh tính project qua API.
+Tối đa key1…key5; output status mới liệt kê đủ key1…key5: key1 active, key2…key5 ready. keys add chỉ hỏi key ẩn; member/quota-group mặc định alias, ưu tiên theo số, project ID trống (unknown). Không bắt nhập metadata. Người dùng xác nhận 5 nguồn dự kiến thuộc 5 project độc lập; chưa xác minh danh tính project qua API. ready chỉ là trạng thái local, không xác nhận generateContent thành công.
 
 Key đang hoạt động được ưu tiên. Lỗi key đánh dấu không khả dụng; quota/cooldown theo nhóm và model. Không đổi key với lỗi prompt/model/policy. 503 retry cùng key tối đa 2 lần bổ sung, backoff 1 rồi 2 giây, nằm trong timeout tổng; sau đó dừng, không xoay key khác.
 
@@ -29,7 +29,7 @@ Model mặc định cuối cùng được báo cáo: **gemini-3.5-flash-lite**. 
 - gemini-3.8-flash generateContent: key1 HTTP 503 sau khoảng 1.9 giây; key2 HTTP 503 sau khoảng 4.1 giây. Chưa xác định nguyên nhân phía dịch vụ; không gọi đây là lỗi key/quota.
 - gemini-3.5-flash-lite bằng key1: prompt ngắn giới hạn 8 output tokens HTTP 200, nội dung OK.
 - Qua gemini-task: trả OK; thêm một tác vụ phân tích thực tế thành công từ môi trường Codex.
-- Chưa có bằng chứng generateContent thành công bằng key2, failover quota thực tế, 5 key đầy đủ hoặc bài phản biện 2 lượt hoàn chỉnh.
+- Chưa có bằng chứng generateContent thành công bằng key2…key5, failover quota thực tế hoặc bài phản biện 2 lượt hoàn chỉnh. Đã có output status liệt kê 5 alias.
 
 ## Sửa lỗi timeout
 
@@ -37,7 +37,7 @@ Wrapper cũ đọc hết body HTTPError trước khi phân loại status. Body l
 
 ## Kiểm thử mô phỏng được báo cáo
 
-Thành công, 429/Retry-After, bỏ qua cùng quota-group, key lỗi/failover, retry network/5xx, lỗi prompt không đổi nguồn, tất cả nguồn lỗi, --key không failover, quota cạn theo lỗi có cấu trúc, status không lộ key, 8 tiến trình ghi trạng thái đồng thời. Có kiểm tra timeout tổng, nhập key giả, quyền 700/600, cú pháp và git diff --check. Sau sửa 503: tối đa 3 request cùng key và không thử key2. Test/mã chưa được đưa vào repo để tái chạy độc lập.
+Thành công, 429/Retry-After, bỏ qua cùng quota-group, key lỗi/failover, retry network/5xx, lỗi prompt không đổi nguồn, tất cả nguồn lỗi, --key không failover, quota cạn theo lỗi có cấu trúc, status không lộ key, 8 tiến trình ghi trạng thái đồng thời. Có kiểm tra timeout tổng, nhập key giả, quyền 700/600, cú pháp và git diff --check. Sau sửa 503: tối đa 3 request cùng key và không thử key2. Bộ test lịch sử trên NAS chưa được cung cấp. Bản nguồn thật đã lưu tại src/gemini-task; bộ test mới tests/test_baseline.py được viết trong phiên này và chạy offline thành công 11/11 trong container ChatGPT, dùng key giả và mock API, không gọi Google. Trong đó 3 test characterization xác nhận lỗi còn tồn tại, không phải xác nhận đã sửa. Xem REVIEW-20261027.md.
 
 ## OAuth đã dừng
 
@@ -47,7 +47,7 @@ Theo báo cáo dọn dẹp: gỡ patch/instrumentation, khôi phục bundle từ
 
 ## Việc tiếp theo
 
-1. Khi có quyền host, rà và đưa bản wrapper/test thật vào repo; ghi commit triển khai để có thể phục hồi.
-2. Kiểm tra key2 với prompt nhỏ nếu cần, bổ sung key3…5 qua nhập ẩn.
+1. Sửa ba hành vi đã tái hiện trong REVIEW-20261027.md trên bản phát triển, chuyển test characterization sang kỳ vọng an toàn. Chưa thay runtime NAS.
+2. Tìm bộ test lịch sử trên NAS nếu còn; kiểm tra key2…key5 bằng prompt nhỏ khi cần, không nhập lại key chỉ vì trạng thái ready.
 3. Kiểm tra bài Codex → Gemini phản biện → Codex tổng hợp; giới hạn 2 lượt.
 4. Giữ nguyên model hoạt động, không tiếp tục chẩn đoán OAuth/3.8 nếu không có yêu cầu mới.
