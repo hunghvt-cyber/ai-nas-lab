@@ -1,0 +1,11 @@
+# Secrets and runtime data — never commit
+.env
+.env.*
+!.env.example
+keys.json
+oauth_creds.json
+gemini-credentials.json
+*.log
+*.jsonl
+__pycache__/
+*.pyc
