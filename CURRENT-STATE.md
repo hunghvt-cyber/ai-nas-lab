@@ -93,3 +93,33 @@ synthetic namespace. Existing Preview auth is local/synthetic and cannot time
 the Homepage auth hop; that requires a separately approved synthetic auth source
 or explicitly authorized safe measurement. See
 [research/notes-speed-results-20261027.md](research/notes-speed-results-20261027.md).
+
+## Notes Firestore exploration — 27/10/2026
+
+Checked the NAS shell: no Firebase CLI, gcloud, Java, ADC config, or Google Cloud
+project variables; no suitable cloud session was verifiable. RAM available was
+about 2 GiB, system volume had about 1.4 GiB free, and port 8080 was already in
+use. A temporary Java 21 download was canceled due very slow transfer before
+install; no emulator started and no system packages/services changed.
+
+Prepared a dependency-injected Firestore compatibility transport, chunk/hash
+storage, lock/fencing adapter tests, demo-only emulator config guarded on
+loopback:8089, and smoke runner. Koofr remains active; `api/app.js` does not
+select Firestore. Node 24 full tests: 154/154 pass, all against the existing
+suite plus an in-memory Firestore-compatible fake. **No real Firebase emulator,
+cloud permission, Firestore database, billing, migration, or deployment has been
+verified or used.**
+
+Gemini advised a direct Firestore repository as the cleaner permanent design;
+Codex keeps the adapter as a limited parity prototype to reuse existing CAS,
+ACL, fencing, idempotency and recovery logic while the backend stays disabled.
+The fake does not establish Firestore transaction behavior or latency. Vercel
+OIDC federation is officially supported as a no-long-lived-key auth path, but
+needs an existing GCP project administrator to set up IAM/WIF and a service
+account. Details and mobile console links:
+[research/notes-firestore-20261027.md](research/notes-firestore-20261027.md).
+
+Notes commit `8e6d0dbfe63396fa2fc5b1e8c7e707a7db3cb66a` is local on branch
+`codex/notes-owner-open-experiment-20261027` at `/home/admin/Hunghvt-notes`.
+Nothing is pushed or deployed from Hunghvt-notes; do not migrate or create a cloud database
+until emulator parity, project authorization and cost/rollback are reviewed.
