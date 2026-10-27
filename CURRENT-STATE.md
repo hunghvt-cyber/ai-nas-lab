@@ -51,3 +51,23 @@ Theo báo cáo dọn dẹp: gỡ patch/instrumentation, khôi phục bundle từ
 2. Tìm bộ test lịch sử trên NAS nếu còn; kiểm tra key2…key5 bằng prompt nhỏ khi cần, không nhập lại key chỉ vì trạng thái ready.
 3. Kiểm tra bài Codex → Gemini phản biện → Codex tổng hợp; giới hạn 2 lượt.
 4. Giữ nguyên model hoạt động, không tiếp tục chẩn đoán OAuth/3.8 nếu không có yêu cầu mới.
+
+## Notes speed research — 27/10/2026
+
+Đã đọc AI NAS Lab handoff và `Hunghvt-notes` nhánh `release/minimal-notes` tại
+`ee5d75f5795bf2ce79971c7a3dfe772119ad6d1a`. Gemini được gọi trực tiếp qua
+`gemini-task` một lần bằng `key1` / `gemini-3.5-flash-lite`; Codex đã kiểm chứng
+phản biện với code và fixture. Không đọc Notes thật, không benchmark production,
+không deploy hoặc đổi cấu hình.
+
+Code cold-open hiện tại gồm 7 WebDAV call tuần tự; known-revision 3. Owner API
+còn kiểm Homepage auth version mỗi request. Agent WebDAV `maxSockets:1` thuộc
+mỗi request và bị destroy cuối request, không phải global queue. Fixture local
+xác nhận candidate owner single-lease là 4 call nhưng làm writer đồng thời nhận
+423 cho tới khi unlock. Chưa có số đo cold-open hoặc p50/p95 production; chỉ có
+smoke save lịch sử 3.025–7.400 giây, không áp làm kết quả hiện hành.
+
+Giữ Koofr + Vercel, draft/CAS/fencing/idempotency/live ACL và xác nhận lưu.
+Ưu tiên đo riêng auth và WebDAV trên preview namespace tổng hợp trước khi quyết
+định thử candidate 4-call; chưa deploy/benchmark preview. Báo cáo, nguồn và test
+chi tiết: [research/notes-speed-results-20261027.md](research/notes-speed-results-20261027.md).

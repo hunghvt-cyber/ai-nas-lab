@@ -1,13 +1,13 @@
 # Notes: nghiên cứu tốc độ ngày 27/10/2026 (Asia/Ho_Chi_Minh)
 
 ## Trạng thái nhiệm vụ
-Yêu cầu: ChatGPT cùng Gemini nghiên cứu Notes Koofr chậm, mục tiêu cảm giác nhanh như thời Blob/gần Google Keep.
-ChatGPT đã đọc source và tài liệu. Chưa gọi được Gemini từ phiên ChatGPT vì không có kết nối NAS; prompt tối thiểu không chứa dữ liệu người dùng đã chuẩn bị tại notes-speed-gemini-prompt-20261027.txt. Không giả lập kết luận Gemini. Chưa sửa/deploy Notes, đọc nội dung Notes thật hoặc chạy benchmark production. Chưa có số đo hiện tại hay chứng minh ngang Google Keep.
+Yêu cầu: ChatGPT/Codex cùng Gemini nghiên cứu Notes Koofr chậm, mục tiêu cảm giác nhanh như thời Blob/gần Google Keep.
+Đã gọi `/home/admin/bin/gemini-task` một lần thành công bằng prompt đã lọc, rồi Codex đối chiếu từng nhận định với source và fixture local. Không giả lập phản hồi. Chưa sửa/deploy Notes, đọc nội dung Notes thật hoặc chạy benchmark production. Chưa có số đo hiện tại hay chứng minh ngang Google Keep. Kết luận và bằng chứng mới nhất nằm trong [notes-speed-results-20261027.md](notes-speed-results-20261027.md).
 
 ## Nguồn và giới hạn
 Repository hunghvt-cyber/Hunghvt-notes, ref release/minimal-notes. Không dùng main như production.
 Đọc README, AGENTS, docs/ARCHITECTURE.md, docs/RELEASE.md, PERFORMANCE-20261019.md, PERFORMANCE-STEP1/STEP2/STEP4 và SHARED-PASSWORD-DECISION-20261026.md.
-README ghi Code Inbox source a258ffc5; release metadata cũ ghi 09bf7dd; chưa kiểm deployment hiện tại. Số call bên dưới là source-count không retry, không phải số ms runtime.
+Source checkout tại `ee5d75f5795bf2ce79971c7a3dfe772119ad6d1a`. Tài liệu 26/10 ghi deployment source `0c8c0761c2625ae2be747e448a7259f974dccb34`; các file read/auth/transport liên quan giống nhau tại hai checkpoint, trừ hai guard save không liên quan. Không có Vercel CLI/project link để kiểm tra deployment đang phục vụ lúc nghiên cứu. Số call bên dưới là source-count/fixture, không phải số ms runtime.
 Các file source/blob đã đọc:
 - lib/store.mjs b9f16e08018c4e148d2ba5ae3e6b97662696ebd1
 - lib/storage.mjs 21c1336db366b80c972fa67ea7d8d0a3d73bca51
@@ -34,8 +34,8 @@ Step1 giảm duplicate lock, open 4 calls dưới một lease. Step2 chuyển co
 Các việc đã có: list+folders bootstrap, inline save ack, lazy share list, gộp GET, ưu tiên ghi/foreground, giảm poll, session cache, durable drafts và retry lệch nhịp.
 
 ## Hướng nghiên cứu, chưa phải quyết định triển khai
-1. Trong ràng buộc hiện hành, thử owner-only single-lease open: LOCK/catalog GET/immutable GET/UNLOCK, share vẫn hai snapshot. Giữ CAS/fencing/hash/ACL; kiểm lease hết hạn và cạnh tranh writer. Đây là tái sử dụng đánh đổi step1 có chọn lọc, không ý tưởng hoàn toàn mới; ít request hơn không tự bảo đảm p95 tốt hơn.
-2. Đo auth/Homepage, cold/warm DNS/TCP/TLS, từng WebDAV method, hold-time/root423, client queue và retry riêng trước khi chọn tối ưu. Không đổi region chỉ từ phỏng đoán Koofr EU; fra1 là metadata lịch sử.
+1. Bước đầu đã làm trong fixture: xác nhận current open 7 calls và candidate owner single-lease 4 calls; candidate khiến writer đồng thời nhận 423 khi content GET đang giữ root lock. Chỉ tiếp tục thử nếu đo cho thấy WebDAV serial RTT chiếm đáng kể và chấp nhận được tác động contention.
+2. Trước quyết định triển khai cần đo riêng Homepage auth, DNS/TCP/TLS/TTFB từng WebDAV call, lock hold/423, retry và UI phases trên preview namespace tổng hợp. Chưa có phép đo mới; không đổi region chỉ từ phỏng đoán Koofr EU hoặc metadata region cũ.
 3. Xem connection reuse có affinity theo đúng credential/namespace và cleanup giới hạn, tránh log secret, crosstenant cache và global single-socket queue. In-flight auth coalescing chỉ gộp request đang chạy; không tự cache TTL vì sẽ đổi thời điểm vô hiệu hóa mật khẩu.
 4. Muốn mở nhanh qua reload: owner content cache cục bộ + background sync là thay đổi quyết định cache 19/10, chưa được duyệt triển khai. Cần phân biệt Đã giữ trên máy với Đã đồng bộ Koofr, tránh ghi đè draft/session, giữ CAS. Không áp shared persistent cache, không hứa nhanh trên thiết bị mới/cache lạnh. Không giảm cloud ack.
 5. Per-note locks/split catalog/materialized read models cần thiết kế schema và giao thức cross-note folder/share/delete/restore nhất quán; không thể chỉ bỏ root lock. Không giả định native Koofr API có CAS hoặc nhanh hơn WebDAV.
@@ -46,7 +46,7 @@ Tách editor-ready, durable-local-draft, server-confirmed ack và máy thứ hai
 Đo fresh-open/cache-hit/reload/save và có/không một writer; báo thành công p50/p95 riêng với 423, số lượt retry và tổng request. Chỉ làm thử nghiệm isolated synthetic namespace khi có quyền phù hợp, không dùng note thật hoặc bật benchmark production. Giữ dữ liệu gốc và mọi draft.
 
 ## Bước tiếp theo
-Chạy một lượt Gemini với prompt đã chuẩn bị, tối đa 2 lượt theo quy tắc AI NAS Lab. Ghi kết quả như tư vấn, Codex tự đối chiếu. Sau đó chọn một thử nghiệm nhỏ, ưu tiên owner-only single lease và đo pha auth/socket nếu Gemini không chỉ ra rủi ro loại trừ.
+Nếu được duyệt sửa/deploy preview riêng: chạy baseline rồi candidate owner-only single lease trong namespace Koofr tổng hợp; giữ shared path hiện tại, thêm phép thử một writer đồng thời, và so p50/p95 editor-ready/server request/save ack/lock hold riêng. Không dùng Notes thật hoặc production và chưa thay mặc định cho tới khi có số liệu.
 
 ## Tham khảo chính thức
 - https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API
