@@ -1,3 +1,5 @@
+> **Blocking review — 27/10/2026:** Hunghvt-notes commit `6dc6d183ac53bc80d7b01987dc72ac5cef9be956` publishes a syntactically invalid `lib/firestore-native-repository.mjs`, Git blob `afad35cbdfccd23e26e7a7a6f2feb3e89b6ef4c8`. The actual source contains output truncation text at line 1 and missing code around line 298. Independent Node 24 syntax check fails and local Git blob hash matches GitHub. Reported NAS smoke remains historical host evidence, not validation of this published artifact. **Not ready for deployment/migration pending source recovery and tests from the exact published candidate.** See [independent review](research/notes-firestore-published-source-review-20261027.md).
+
 # Trạng thái ngày 27/10/2026
 
 ## Nguồn và mức xác minh
