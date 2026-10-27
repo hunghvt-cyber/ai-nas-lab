@@ -68,3 +68,96 @@ Persistent owner full-content cache could paint after reload but changes the 202
 ## Smallest next experiment
 
 After approval to alter/deploy an isolated preview (not production): use a dedicated synthetic Koofr namespace and no real Notes. First capture the current cold-open/auth/WebDAV phase baseline; then run the four-call owner experiment with the same fixture. Include a deliberately slow immutable read with one concurrent shared/owner writer to record lease hold and 423/retry effects. Keep shared flow unchanged. Compare successful cold-open p50/p95, lock hold, writer acknowledgement, and all 423/retry counts. Pick an acceptance threshold only after observing baseline; a small sequential sample is qualification, not p95-grade capacity proof. Keep save ack and cross-device freshness as separate criteria. No deployment or benchmark was done here.
+
+## Local experiment preparation — 2026-10-27
+
+The follow-up work is on a separate, **local-only** branch in the Notes checkout:
+`codex/notes-owner-open-experiment-20261027`. It started from source SHA
+`ee5d75f5795bf2ce79971c7a3dfe772119ad6d1a`; final local commit is
+`8c75625f1756ddac91a766071557eb7c0afefcc7`. Checkout is
+`/home/admin/Hunghvt-notes`. The feature branch was not pushed because the repository's
+Vercel Git Preview integration could not be verified; no deploy was initiated.
+
+### Prepared code and safeguards
+
+- The owner API has an opt-in `single-lease-v1` candidate, rejected by the live
+  handler and disabled unless `NOTES_OWNER_READ_EXPERIMENT=enabled` is set in a
+  Vercel Preview environment. Default owner reads remain the existing
+  two-snapshot path; shared Note/folder reads remain unchanged.
+- The candidate keeps the root lock across catalog selection and immutable
+  content fetch, checks restore/deleted state, and uses the existing immutable
+  record parser/hash/ID checks. The lock always follows the normal unlock/expiry
+  path. It changes no writer, draft, CAS, fencing, ACL, idempotency, or save
+  acknowledgement code.
+- The internal observer records only allowlisted operation label, method,
+  status or generic network-error marker, elapsed time, DNS/TCP/TLS/header/body
+  phase durations and socket reuse. Homepage provider calls get duration and
+  generic return/error status metadata. No URL/path, headers, request/response
+  body, note ID, cookie, token, or raw error is recorded or returned to clients.
+- `.env.preview.example` and `docs/DEPLOYMENT.md` describe a synthetic-only
+  Preview namespace. There are no values filled in, and no Koofr namespace,
+  file, or Preview deployment was created.
+- Added an in-memory comparison script and deterministic protocol tests covering
+  7-vs-4 call counts, same revision/content, current read with concurrent owner
+  and share writers, candidate 423/retry with the same operation ID, hash checks,
+  and metadata redaction.
+
+### Local synthetic comparison (not provider or user latency)
+
+Ran using Node `v24.22.1`, an in-memory WebDAV implementation, a fixed 5 ms
+delay per fake call, 20 solo samples per variant, and a virtual 1,000 ms retry
+delay. Latest run:
+
+| Case | Current two-snapshot | Candidate single-lease |
+| --- | ---: | ---: |
+| Solo cold open p50 / p95 | 47.0 / 57.0 ms | 27.1 / 33.1 ms |
+| Owner writer while open | 0/1 save attempts got 423; 0 retries; save total 144.6 ms | 1/2 attempts got 423; 1 retry; 1,000 ms virtual backoff; total 1,078.5 ms |
+| Share writer while open | 0/1 save attempts got 423; 0 retries; save total 130.2 ms | 1/2 attempts got 423; 1 retry; 1,000 ms virtual backoff; total 1,078.5 ms |
+
+The 7-call open allows the concurrent writer to commit during the unlocked
+content transfer; it revalidates twice and returns the committed new revision.
+The 4-call candidate returns the selected snapshot and blocks the writer until
+unlock. The synthetic results show the expected tradeoff, not actual Koofr
+latency or a statistically meaningful real 423 rate. In this small forced
+collision fixture, reduced open latency comes with a material save-tail penalty;
+therefore do not enable or recommend rollout from these numbers alone.
+
+The uncontended save fixture was p50/p95 61.7/67.9 ms with 9 calls. It did not
+change between variants because writer logic is unchanged. This says nothing
+about actual Koofr save acknowledgement.
+
+### Gemini review and Codex decision
+
+One actual consultation succeeded through `gemini-task`; only filtered protocol
+context was sent. Gemini agreed that phase timing should precede choosing a
+variant, and called out the contention risk of extending the exclusive lease.
+Its suggestion to promote a candidate on a small percentage latency gain is
+not grounded in this fixture, so no arbitrary threshold was adopted. Its
+suggestion to add heartbeat/force-break behavior is rejected: the request keeps
+the existing bounded lease and must not weaken fencing based on a speculative
+timeout issue. Final decision remains pending a dedicated Preview measurement.
+
+### What remains blocked from real measurement
+
+No permission/configuration is present to target the dedicated Vercel lab
+Preview, and this session had no dedicated Preview session/portal password,
+Koofr WebDAV app credential, immutable Preview origin, or newly authorized
+synthetic namespace. Those are required to measure WebDAV from the actual Vercel
+Preview. Preview uses its own synthetic portal password and does **not** call
+Homepage auth, so it cannot measure the real Homepage auth hop. To measure that
+phase without production service credentials in Preview, a separate approved
+synthetic Homepage-auth source or an explicitly authorized safe production
+measurement is also required. No production credential was read or copied.
+
+Smallest next step: after the dedicated Preview target and isolated synthetic
+credentials/namespace are authorized, deploy this exact reviewed branch to that
+Preview only, seed one synthetic note, and run repeated cold opens on the same
+note with both variants. Include solo opens and a deliberately synchronized
+owner/share save; record editor-open wall time, provider phase rows, save ack,
+423s, retry count and total retry time. Keep the shared open path at 7 calls.
+Choose an acceptance threshold only after observing baseline and require the
+candidate's open gain to outweigh measured save/retry degradation. If that
+condition is not met, retain the 7-call path.
+
+Local verification: all 147 Node 24 tests passed; the fixture comparison script
+completed; `git diff --check` passed. These are local simulations only.
