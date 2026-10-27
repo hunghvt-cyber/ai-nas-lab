@@ -165,3 +165,10 @@ action, or Koofr mutation has occurred. Koofr remains live Production. The
 cutover duration is still unmeasured; assess from the final snapshot size and a
 pre-import dry run rather than claiming a number now. Next action is a concrete
 cutover plan for review, not further project setup.
+
+### Final cutover update — 27/10/2026
+
+The pending cutover was completed after this package was written. The prior
+snapshot-size, Koofr-production and no-import statements are historical. Read
+the final snapshot, parity, IAM, runtime and rollback evidence in
+[notes-firestore-production-cutover-20261027.md](notes-firestore-production-cutover-20261027.md).
