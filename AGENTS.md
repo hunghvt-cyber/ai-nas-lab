@@ -1,5 +1,7 @@
 # Quy tắc tiếp quản AI NAS Lab
 
+- Quyết định người dùng 27/10/2026: repo này chỉ chứa thông tin liên quan AI. Giữ wrapper/API/key-alias/quota/retry và bài học dùng lại; đưa kết quả Notes, migration, backup và dọn hệ thống sang repo chủ quản. Hunghvt-notes là nguồn Notes hiện hành. Không đưa trạng thái ứng dụng trở lại CURRENT-STATE.md của repo AI.
+
 - Đọc README.md, CURRENT-STATE.md và RUNBOOK.md trước khi làm. Cấu hình runtime chỉ được coi là hiện hành sau khi kiểm tra trên host; ghi nguồn, thời điểm và giới hạn bằng chứng.
 - Người dùng gọi là “đại ca”. Mọi bulk lệnh yêu cầu người dùng chạy trên NAS bọc bằng `/home/admin/bin/copyout 'COMMAND'`. Lệnh tương tác nhập key đưa riêng, giải thích ngắn.
 - Codex điều phối, kiểm chứng và thực hiện. Gemini chỉ tư vấn/phản biện, không chạy tool hoặc sửa file. Mặc định tối đa 2 lượt hỏi Gemini mỗi nhiệm vụ; retry kỹ thuật phải có giới hạn riêng.

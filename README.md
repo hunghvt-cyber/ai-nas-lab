@@ -2,6 +2,10 @@
 
 Nguồn bàn giao cho Codex phối hợp Gemini API trên NAS. Cập nhật 27/10/2026 (Asia/Ho_Chi_Minh).
 
+## Phạm vi
+
+Chỉ chứa công cụ, cấu hình không nhạy cảm, quy trình và bài học phối hợp Codex/Gemini/AI. Kết quả vận hành, backup, migration và cleanup của ứng dụng phải nằm trong repo ứng dụng đó. Tài liệu Notes đã chuyển sang [Hunghvt-notes](https://github.com/hunghvt-cyber/Hunghvt-notes); lịch sử Git cũ được giữ, không tiếp tục dùng repo AI làm kho bàn giao cho Notes/NAS.
+
 ## Đọc trước
 
 1. [AGENTS.md](AGENTS.md): quy tắc tiếp quản.
