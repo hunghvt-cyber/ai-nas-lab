@@ -260,3 +260,10 @@ repository `3454137816de08aaf9e7ab302c37b4f9ae1d9aea`, lockfile
 `8c4e1c62ffba93eb05f2b1bf1eecbdfd0a848892`. WIF/deploy/migration remain paused;
 Koofr production is unchanged. Details are in
 `research/notes-firestore-published-source-review-20261027.md`.
+
+
+## Firestore Vercel preparation — 2026-10-27
+
+Prepared test-only WIF/IAM in `notes-lab-56f0f`: exact Vercel Preview subject, team audience, no user-managed SA keys; IAM readback passed. Vercel branch-scoped Preview env creation is blocked because project `hunghvt-notes` is not connected to Git. No environment variables, deployment, billing or production data were changed. The required owner action is to reconnect it to `hunghvt-cyber/Hunghvt-notes`; then Codex can finish a branch-scoped synthetic Preview check.
+
+Migration review confirms Koofr export stops at 2,000,000 bytes. No real Notes snapshot was inspected. If exceeded, stop before import until a bounded streaming exporter is implemented. Rollback plan freezes writes, exports current Firestore state and restores it to a fresh Koofr namespace, preserving post-cutover edits and verifying hashes before switching. Details: `research/notes-firestore-vercel-migration-review-20261027.md` and Notes candidate `docs/FIRESTORE-VERCEL-MIGRATION-REVIEW.md`.
