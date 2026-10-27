@@ -71,3 +71,25 @@ Giữ Koofr + Vercel, draft/CAS/fencing/idempotency/live ACL và xác nhận lư
 Ưu tiên đo riêng auth và WebDAV trên preview namespace tổng hợp trước khi quyết
 định thử candidate 4-call; chưa deploy/benchmark preview. Báo cáo, nguồn và test
 chi tiết: [research/notes-speed-results-20261027.md](research/notes-speed-results-20261027.md).
+
+### Notes owner-open experiment preparation — 27/10/2026
+
+Prepared local-only branch `codex/notes-owner-open-experiment-20261027` in
+Hunghvt-notes; no Preview deploy, Koofr namespace/data, or production access.
+Added opt-in Preview-only owner single-lease read, sanitized auth/WebDAV phase
+telemetry, a fixture comparison script, and concurrency/redaction tests. Share
+reads and writer/draft/CAS/fencing/ACL/idempotency paths stay on the current
+protocol. Node 24 suite: 147/147 passed; fake 5 ms/call fixture: owner cold-open
+p50/p95 47/57 ms current vs 27.1/33.1 ms candidate. In forced owner/share
+contention, current got 0/1 save 423s; candidate got 1/2 attempts 423 and added
+1,000 ms virtual retry delay. These numbers are synthetic and do not justify
+deployment; retain current default pending real isolated Preview results.
+
+Final Notes commit `8c75625f1756ddac91a766071557eb7c0afefcc7`, checkout
+`/home/admin/Hunghvt-notes`. Branch is not pushed because Vercel automatic Preview
+behavior was not verified. Real measurement still needs a dedicated lab Preview
+target/authorization, Preview-only session and Koofr credentials, and a fresh
+synthetic namespace. Existing Preview auth is local/synthetic and cannot time
+the Homepage auth hop; that requires a separately approved synthetic auth source
+or explicitly authorized safe measurement. See
+[research/notes-speed-results-20261027.md](research/notes-speed-results-20261027.md).
