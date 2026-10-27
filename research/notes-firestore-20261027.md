@@ -50,3 +50,64 @@ Notes code is local-only, unpushed, and not deployed: commit
 `8e6d0dbfe63396fa2fc5b1e8c7e707a7db3cb66a` on branch
 `codex/notes-owner-open-experiment-20261027`, checkout
 `/home/admin/Hunghvt-notes`.
+
+## Native repository continuation — 27/10/2026
+
+Kept the compatibility adapter intact and made a separate local branch
+`codex/notes-firestore-native-20261027`. Added a native repository prototype
+and design at `Hunghvt-notes/lib/firestore-native-repository.mjs` and
+`Hunghvt-notes/docs/firestore-native-design.md`. It uses per-note CAS
+transactions, immutable content revisions, compact operation receipts,
+share-token reads in the same transaction as note reads/writes, and share-count
+guards for Code Inbox. History is separate version documents; chunks start only
+above 750 KiB. API integration remains disabled.
+
+Focused Node 24 tests pass **8/8**: create/update revision CAS, same-op replay
+including concurrent duplicate requests, same-base competing writers,
+independent-note writes, share/revoke, five history revisions, large chunked
+content/hash readback, and Inbox blocking when a share exists. These tests use
+an in-memory Firestore-shaped fake. They do not establish transaction locking,
+retry/billing behavior, or cloud latency.
+
+Scope still missing before native feature parity: folder APIs and atomic
+multi-note operations, order CAS, trash/restore/purge, consistent backup/restore,
+and the real emulator/cloud test. Existing browser draft code, GitHub OIDC and
+envelope crypto, UI routes, and application response contract are intended to
+stay. Native path replaces the root catalog/lease, global receipts/folder/share
+maps, DAV lock/fencing, and DAV inventory/purge/backup internals. User-visible
+atomic folder/trash guarantees need an explicit native protocol before wiring.
+
+One Gemini critique was requested with filtered architecture only. It correctly
+flagged same-note contention, multi-note lock sets, operation retention, chunk
+amplification, purge fanout, and checking ACL on every operation. Codex rejected
+its fixed “one write per second” assertion (official docs say per-document rate
+is workload-dependent) and its claim of a 500 combined read+write cap. Google
+release notes say the service removed the old 500-write Commit/transaction cap;
+current quota docs list a 500 field-transform limit. Some SDK references retain
+their own 500-write constraints, so behavior for the pinned Node Admin
+transaction must be checked on a real target before deciding the 500-note edge.
+Read/write count estimates
+and exact gaps are in the Notes design document.
+
+Cloud path: current NAS shell still has no Firebase/gcloud CLI or verified ADC.
+For the least user setup, use Google Cloud Shell from a phone/iPad in an already
+authorized dedicated non-production project with an existing Firestore database
+and a user grant of `roles/datastore.user`, then run only the synthetic
+namespaced smoke test. That role grants project-level data access, so a
+production Notes project is not a safe test target. This does not use NAS
+credentials and does not require Vercel OIDC. A
+NAS-origin test separately needs an installed Cloud CLI plus ADC or scoped
+workload identity. Vercel production separately needs GCP Workload Identity
+Federation scoped to the Vercel project/environment and a dedicated service
+account. No project/database was created, no billing enabled and no cloud call
+made. Official references and steps are in `Hunghvt-notes/docs/firestore-native-design.md`.
+
+During a requested full local-suite check, 119 tests passed and 6 test files
+failed to load because `iron-session` is not installed in this checkout. The
+suite also ran its existing synthetic fixture cleanup allowlist: it reported
+39 synthetic probe folders removed, production root present and unrelated folder
+names unchanged. Focused native tests were then run separately and passed.
+
+The Notes branch is local-only, based on the previous adapter branch and
+uncommitted at this handoff; no push/deploy/cloud access occurred. See
+`Hunghvt-notes` branch `codex/notes-firestore-native-20261027`.

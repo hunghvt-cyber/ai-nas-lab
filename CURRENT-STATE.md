@@ -123,3 +123,27 @@ Notes commit `8e6d0dbfe63396fa2fc5b1e8c7e707a7db3cb66a` is local on branch
 `codex/notes-owner-open-experiment-20261027` at `/home/admin/Hunghvt-notes`.
 Nothing is pushed or deployed from Hunghvt-notes; do not migrate or create a cloud database
 until emulator parity, project authorization and cost/rollback are reviewed.
+
+### Native Firestore repository direction — 27/10/2026
+
+Continued on local branch `codex/notes-firestore-native-20261027`; compatibility
+adapter remains unchanged and Koofr remains active. Added an unwired native
+repository prototype and architecture/cost handoff in `Hunghvt-notes` and this
+repo’s `research/notes-firestore-20261027.md`. Focused Node 24 tests pass 8/8
+against an in-memory fake only; no emulator/cloud proof. Native code covers
+per-note CAS, idempotent saves, shared authorization/revoke, version history,
+chunk/hash validation and Inbox share guards. Folder/order/trash/purge and
+backup parity are not implemented yet and block integration. Gemini critique
+was one filtered advisory; Codex corrected unsupported fixed 1-write/sec and
+500-total-op claims against current official docs.
+
+No gcloud/firebase CLI or ADC was present in the checked NAS shell. Least-work
+cloud path is a synthetic namespaced probe from Cloud Shell on phone/iPad,
+using an existing authorized dedicated non-production project/database plus
+`roles/datastore.user` (project-level access); NAS ADC and Vercel production
+OIDC are separate setups. No billing, database, cloud
+call, migration, or deploy occurred. Full repository tests could not load six
+files because `iron-session` is absent; existing fixture cleanup reported only
+39 allowlisted synthetic folders removed and production root unchanged. Details
+and official links: `research/notes-firestore-20261027.md` and
+`Hunghvt-notes/docs/firestore-native-design.md`.
