@@ -170,3 +170,47 @@ owner/save/CAS/share/revoke, then removes those exact documents. It will not
 create a project/database or enable billing. This path is separate from NAS ADC
 and Vercel production OIDC. See the branch's smoke guide; no secret or credential
 is needed in chat.
+
+### Native Firestore integration prepared — 27/10/2026
+
+Supersedes the Cloud Shell-only smoke instructions above for the next step: the
+user asked to avoid Cloud Shell and result relay. On NAS, installed official
+Google Cloud CLI 590.0.1 for Linux ARM64 under
+`/home/admin/.local/opt/notes-google-cloud-cli`; the downloaded archive SHA-256
+matched Google's published checksum. Wrapper `/home/admin/bin/notes-gcloud`
+uses only its isolated config home at
+`/home/admin/.local/state/notes-gcloud-home/.config/gcloud`. No ADC/account
+credential exists there yet, and no Gemini or other app credential was read.
+
+Hunghvt-notes safe branch
+`codex/notes-firestore-cloudshell-20261027` now contains native Firestore
+repository/runtime integration, explicit backend selection (Koofr remains the
+default), migration/verification/rollback tooling, and integration tests.
+GitHub commit: `4ef6be251dde9692f18b0b0f7364b7acebc5d5d4`. Full offline Node 24
+suite: 169/169 pass. The tests use in-memory fakes and prove application
+invariants only; they are not evidence of Firestore cloud behavior. No deploy,
+billing change, real-note access, or migration occurred. Release branch was not
+changed. Gemini reviewed a filtered technical summary once; its concern about
+the old 500-write cap was stale, while the review highlighted share/folder/purge
+race cases now covered by checks or documented as migration gates.
+
+The Cloud Firestore smoke runner is prepared for project
+`notes-lab-56f0f`, with random isolated vault names and cleanup scoped to those
+two exact vaults. It exercises init, save/open, CAS, share/revoke, folder
+deletion, trash/restore, backup/restore and purge. Required real-cloud proof is
+still blocked by missing NAS ADC. To authorize just this NAS-only check, run the
+following in an interactive NAS terminal, open Google's URL on the phone, sign
+in to an account granted `roles/datastore.user` on the test project, then paste
+the one-time code only into that terminal (never into chat):
+
+```sh
+/home/admin/bin/notes-gcloud auth application-default login --no-launch-browser --disable-quota-project
+```
+
+This creates ADC only in the isolated Notes gcloud config. It does not set a
+quota project, enable billing, use Cloud Shell, or configure production Vercel
+OIDC. Afterward Codex can run and inspect the cloud smoke itself; the user need
+not relay output. Cloud authorization and a successful real smoke are still
+unverified. See `research/notes-firestore-implementation-20261027.md` and the
+Hunghvt-notes branch documents `docs/FIRESTORE-NATIVE.md` and
+`docs/FIRESTORE-CLOUD-SMOKE.md`.
