@@ -346,3 +346,15 @@ An optional final read-only Resource Manager policy refresh from NAS was
 rate-limited with HTTP 429; no IAM changes followed the successful runtime
 deny/allow checks. Re-read current bindings in cutover preflight before changing
 the Production runtime config.
+
+### NAS root partition cleanup — 2026-10-27
+
+Root (`/dev/mmcblk1p2`) went from 94% used / 424 MiB free to 82% / 1.1 GiB
+free. Moved Google Cloud SDK 590.0.1 onto `/vol1` while preserving the old
+wrapper path as a symlink; `notes-gcloud` still reports its isolated ADC config
+directory. Removed only one duplicate Vercel npx cache and regenerable Node-gyp
+and pip caches. The temporary Cloud SDK tarball was removed from `/tmp` (tmpfs).
+Credentials, Notes snapshot, checkouts, services, Docker data and backup tasks
+remain intact. Tools and camera containers were checked after cleanup. Details,
+measurements and the gcloud rollback path:
+[research/nas-root-partition-cleanup-20261027.md](research/nas-root-partition-cleanup-20261027.md).
