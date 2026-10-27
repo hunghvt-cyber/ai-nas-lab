@@ -8,7 +8,7 @@ Trong SSH Termius Android trên NAS, chạy tương tác (không copyout vì c�
 /home/admin/bin/gemini-task keys add key1
 ```
 
-Chỉ nhập key, không nhập tên/project. Đổi alias thành key2…key5 để bổ sung. Chờ thông báo lưu thành công. Không gửi key vào chat. Hành vi thay key đã tồn tại cần kiểm tra --help/mã hiện hành trước khi dùng; chưa được xác nhận riêng.
+Chỉ nhập key, không nhập tên/project. Đổi alias thành key2…key5 để bổ sung. Chờ thông báo lưu thành công. Không gửi key vào chat. Đã đọc mã: nếu alias tồn tại, lệnh thông báo thay credential rồi ghi key mới và reset invalid. Lệnh còn reset group/priority mọi alias về mặc định theo số; chưa kiểm thử tương tác thay key thật. Không cần nhập lại 5 key đang được status liệt kê.
 
 ## Kiểm tra giao diện và trạng thái
 
@@ -19,7 +19,7 @@ Chỉ nhập key, không nhập tên/project. Đổi alias thành key2…key5 đ
 '
 ```
 
-Không dùng cat để in keys.json. status không được lộ key. Các option ngoài --key và đầu vào stdin/file cần kiểm tra --help, không đoán tên cờ.
+Lưu ý status có tạo/ghi state/lock qua state_snapshot, dù không gọi API. Không dùng cat để in keys.json. status không được lộ key. Các option ngoài --key và đầu vào stdin/file cần kiểm tra --help, không đoán tên cờ.
 
 ## Gọi thử ngắn
 
@@ -46,7 +46,7 @@ Người dùng giao việc cho Codex trên NAS: “Làm việc này, nhờ Gemin
 
 ## Khôi phục/gỡ
 
-Chưa có source wrapper hoặc bản backup triển khai trong repo. Không bảo đảm disaster recovery từ tài liệu này. Trước khi gỡ cần xác minh file/symlink và nguồn bản gốc trên NAS; chỉ gỡ thành phần gemini-task riêng, không xóa Node/CLI/credential hoặc sửa dịch vụ khác tự ý.
+Đã có bản nguồn nguyên trạng tại src/gemini-task; checksum và giới hạn kiểm chứng trong REVIEW-20261027.md. Bộ tests/test_baseline.py là test mới chạy offline, không phải test lịch sử NAS. Khi phục hồi cần kiểm tra SHA-256 và đặt quyền thực thi; chưa thử phục hồi trên NAS và không lưu key store vào Git. Source baseline còn ba hành vi lỗi đã tái hiện; không coi đây là bản đã sửa. Trước khi gỡ cần xác minh file/symlink và nguồn bản gốc trên NAS; chỉ gỡ thành phần gemini-task riêng, không xóa Node/CLI/credential hoặc sửa dịch vụ khác tự ý.
 
 ## Nguồn chính thức để kiểm tra lại
 
