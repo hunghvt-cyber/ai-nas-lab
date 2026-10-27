@@ -1,0 +1,498 @@
+#!/usr/bin/env python3
+"""Text-only Gemini API delegate with per-project cooldown and private key store."""
+import argparse
+import email.utils
+import fcntl
+import getpass
+import http.client
+import io
+import json
+import os
+import re
+import signal
+import socket
+import sys
+import tempfile
+import time
+import unicodedata
+import urllib.error
+import urllib.parse
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+
+CONFIG_DIR = Path.home() / ".config/gemini-task"
+KEYS_FILE = CONFIG_DIR / "keys.json"
+STATE_FILE = CONFIG_DIR / "state.json"
+LOCK_FILE = CONFIG_DIR / "state.lock"
+API_BASE = "https://generativelanguage.googleapis.com/v1beta/models/"
+DEFAULT_MODEL = "gemini-3.5-flash-lite"
+MAX_REQUESTS = 10
+TRANSIENT_RETRIES = 2
+ERROR_BODY_TIMEOUT = 0.75
+
+
+class TaskError(Exception):
+    def __init__(self, code, message):
+        self.code, self.message = code, message
+        super().__init__(message)
+
+
+def secure_dir():
+    CONFIG_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(CONFIG_DIR, 0o700)
+
+
+def atomic_json(path, data):
+    secure_dir()
+    fd, temp_name = tempfile.mkstemp(prefix=".gemini-task-", dir=CONFIG_DIR)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
+            f.write("\n")
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temp_name, path)
+        os.chmod(path, 0o600)
+        dfd = os.open(CONFIG_DIR, os.O_RDONLY)
+        try:
+            os.fsync(dfd)
+        finally:
+            os.close(dfd)
+    finally:
+        try:
+            os.unlink(temp_name)
+        except FileNotFoundError:
+            pass
+
+
+def read_keys():
+    try:
+        data = json.loads(KEYS_FILE.read_text(encoding="utf-8"))
+        if not isinstance(data, dict) or not isinstance(data.get("keys"), dict):
+            raise ValueError
+        return data
+    except FileNotFoundError:
+        return {"active": None, "keys": {}}
+    except (OSError, ValueError, json.JSONDecodeError):
+        raise TaskError(78, "key store unreadable; inspect local permissions/configuration")
+
+
+def locked_state(fn):
+    secure_dir()
+    with open(LOCK_FILE, "a+", encoding="utf-8") as lock:
+        os.chmod(LOCK_FILE, 0o600)
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            try:
+                state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+            except FileNotFoundError:
+                state = {"cooldowns": {}}
+            except (OSError, ValueError, json.JSONDecodeError):
+                raise TaskError(78, "cooldown state unreadable; inspect local permissions/configuration")
+            result, new_state = fn(state)
+            atomic_json(STATE_FILE, new_state)
+            return result
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+
+def mutate_keys(fn):
+    secure_dir()
+    with open(LOCK_FILE, "a+", encoding="utf-8") as lock:
+        os.chmod(LOCK_FILE, 0o600)
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            data = read_keys()
+            fn(data)
+            atomic_json(KEYS_FILE, data)
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+
+def state_snapshot():
+    return locked_state(lambda state: (state, state))
+
+
+def safe_error(detail):
+    """Extract only stable status/reason codes; never print API message/body."""
+    err = detail.get("error", {}) if isinstance(detail, dict) else {}
+    status = str(err.get("status", "")) if isinstance(err, dict) else ""
+    reasons = []
+    code = err.get("code") if isinstance(err, dict) else None
+    if isinstance(code, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,80}", code):
+        reasons.append(code.replace("-", "_").upper())
+    for item in (err.get("details", []) if isinstance(err, dict) else []):
+        if isinstance(item, dict):
+            reason = item.get("reason")
+            if isinstance(reason, str) and re.fullmatch(r"[A-Z0-9_]{1,80}", reason):
+                reasons.append(reason)
+    return status, reasons
+
+
+def retry_delay(headers, detail):
+    value = headers.get("Retry-After") if headers else None
+    if value:
+        try:
+            return max(0, min(86400, int(value)))
+        except ValueError:
+            try:
+                dt = email.utils.parsedate_to_datetime(value)
+                return max(0, min(86400, int(dt.timestamp() - time.time())))
+            except (TypeError, ValueError, OverflowError):
+                pass
+    err = detail.get("error", {}) if isinstance(detail, dict) else {}
+    for item in err.get("details", []) if isinstance(err, dict) else []:
+        if isinstance(item, dict) and item.get("@type", "").endswith("google.rpc.RetryInfo"):
+            raw = item.get("retryDelay", "")
+            match = re.fullmatch(r"([0-9]+)(?:\.([0-9]+))?s", str(raw))
+            if match:
+                return max(0, min(86400, int(match.group(1)) + (1 if match.group(2) and int(match.group(2)[0]) >= 5 else 0)))
+    return None
+
+
+def cooldown_key(group, model):
+    return group + "\0" + model
+
+
+def set_cooldown(group, model, seconds, reason, blocked=False):
+    until = 0 if blocked else int(time.time()) + max(0, int(seconds))
+    def update(state):
+        state.setdefault("cooldowns", {})[cooldown_key(group, model)] = {
+            "until": until, "reason": reason, "blocked": blocked,
+        }
+        return None, state
+    locked_state(update)
+    return until
+
+
+def mark_invalid(alias):
+    def update(data):
+        if alias in data.get("keys", {}): data["keys"][alias]["invalid"] = True
+    mutate_keys(update)
+
+
+def set_active(alias):
+    def update(data):
+        if alias not in data["keys"]: raise TaskError(64, "unknown key alias")
+        if data["keys"][alias].get("invalid"): raise TaskError(69, "selected key is marked unavailable; replace it first")
+        data["active"] = alias
+    mutate_keys(update)
+
+
+def parse_args(argv):
+    p = argparse.ArgumentParser(prog="gemini-task", description="Ask Gemini for text analysis via the Gemini API")
+    p.add_argument("--key", metavar="ALIAS", help="use only this key (key1..key5); no failover")
+    p.add_argument("--model", default=DEFAULT_MODEL, help="Gemini model (default: %(default)s)")
+    p.add_argument("--timeout", type=int, default=os.environ.get("GEMINI_TASK_TIMEOUT", "180"), help="total time limit in seconds")
+    p.add_argument("prompt_file", nargs="?", help="UTF-8 prompt file; otherwise read stdin")
+    return p, p.parse_args(argv)
+
+
+def parse_command(argv):
+    if not argv or argv[0] not in ("status", "keys", "cooldown"):
+        return None
+    p = argparse.ArgumentParser(prog="gemini-task")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("status")
+    keys = sub.add_parser("keys").add_subparsers(dest="action", required=True)
+    add = keys.add_parser("add"); add.add_argument("alias", choices=[f"key{i}" for i in range(1, 6)])
+    use = keys.add_parser("use"); use.add_argument("alias", choices=[f"key{i}" for i in range(1, 6)])
+    prio = keys.add_parser("priority"); prio.add_argument("alias", choices=[f"key{i}" for i in range(1, 6)]); prio.add_argument("rank", type=int)
+    rem = keys.add_parser("remove"); rem.add_argument("alias", choices=[f"key{i}" for i in range(1, 6)])
+    cool = sub.add_parser("cooldown").add_subparsers(dest="action", required=True)
+    clear = cool.add_parser("clear"); clear.add_argument("group"); clear.add_argument("--model", default=DEFAULT_MODEL)
+    return p, p.parse_args(argv)
+
+
+def command_status():
+    keys = read_keys()["keys"]
+    state = state_snapshot().get("cooldowns", {})
+    now = int(time.time())
+    for alias in sorted(keys, key=lambda x: int(x[3:]) if x.startswith("key") and x[3:].isdigit() else 99):
+        item = keys[alias]
+        group = item.get("group", item.get("project", ""))
+        active_cooldowns = [(key.split("\0", 1)[1], value) for key, value in state.items()
+                            if key.startswith(group + "\0") and
+                            (value.get("blocked") or int(value.get("until", 0)) > now)]
+        if item.get("invalid"):
+            status = "unavailable (invalid/revoked)"
+        elif active_cooldowns:
+            model, cd = min(active_cooldowns, key=lambda pair: int(pair[1]["until"]))
+            status = (f"quota blocked for {model}; clear manually" if cd.get("blocked") else
+                      f"cooldown {model} until " + datetime.fromtimestamp(int(cd["until"]), timezone.utc).isoformat())
+        else:
+            status = "active" if alias == read_keys().get("active") else "ready"
+        print(f"{alias}\t{item.get('member', alias)}\t{item.get('project') or '(unknown)'} / {item.get('group', alias)}\t{status}")
+
+
+def add_key(alias):
+    if not sys.stdin.isatty() or not sys.stderr.isatty():
+        raise TaskError(64, "keys add must run in an interactive terminal")
+    data = read_keys()
+    old = data["keys"].get(alias)
+    if old:
+        print(f"Replacing stored credential for {alias}.", file=sys.stderr)
+    key = getpass.getpass("Gemini API key (hidden): ")
+    if not key:
+        raise TaskError(64, "API key is required")
+    if key != key.strip() or any(unicodedata.category(ch).startswith("C") for ch in key):
+        raise TaskError(64, "key has surrounding whitespace or terminal control characters; re-enter it")
+    priority = int(alias[-1])
+    new_item = {"member": alias, "project": old.get("project", "") if old else "",
+                "group": alias, "priority": priority, "key": key, "invalid": False}
+    def update(latest):
+        for existing_alias, item in latest["keys"].items():
+            item["group"] = existing_alias
+            item["priority"] = int(existing_alias[-1])
+            item["member"] = item.get("member") or existing_alias
+            item.setdefault("project", "")
+        latest["keys"][alias] = new_item
+        if not latest.get("active") or latest.get("active") not in latest["keys"]:
+            latest["active"] = alias
+    mutate_keys(update)
+    print(f"Saved {alias} in {CONFIG_DIR}; key value hidden.", file=sys.stderr)
+
+
+def remove_key(alias):
+    def update(data):
+        if alias not in data["keys"]: raise TaskError(64, "unknown key alias")
+        del data["keys"][alias]
+        if data.get("active") == alias:
+            data["active"] = min(data["keys"], key=lambda a: (data["keys"][a].get("priority", 999), a), default=None)
+    mutate_keys(update)
+    print(f"Removed {alias} from gemini-task key store.", file=sys.stderr)
+
+
+def decode_prompt(path):
+    try:
+        data = Path(path).read_text(encoding="utf-8") if path else sys.stdin.read()
+    except (OSError, UnicodeError):
+        raise TaskError(66, "cannot read prompt as UTF-8")
+    if not data.strip(): raise TaskError(64, "prompt is empty")
+    return data
+
+
+def read_http_error_body(exc, timeout):
+    """Read structured error details briefly; never let an incomplete body hide HTTP status."""
+    if isinstance(getattr(exc, "fp", None), io.BytesIO):
+        try: return exc.read(65536)
+        except (OSError, http.client.IncompleteRead): return b""
+    pending = [getattr(exc, "fp", None)]
+    seen = set()
+    sock = None
+    while pending and len(seen) < 32:
+        obj = pending.pop()
+        if obj is None or id(obj) in seen: continue
+        seen.add(id(obj))
+        if isinstance(obj, socket.socket):
+            sock = obj
+            break
+        for attr in ("_sock", "raw", "fp"):
+            try: child = getattr(obj, attr, None)
+            except Exception: child = None
+            if child is not None: pending.append(child)
+    if sock is None: return b""
+    try: previous_timeout = sock.gettimeout()
+    except OSError: return b""
+    bound = min(ERROR_BODY_TIMEOUT, max(0.05, timeout))
+    if previous_timeout is not None: bound = min(bound, previous_timeout)
+    try:
+        sock.settimeout(bound)
+        return exc.read(65536)
+    except (OSError, TimeoutError, http.client.IncompleteRead):
+        return b""
+    finally:
+        try: sock.settimeout(previous_timeout)
+        except OSError: pass
+
+
+def send_request(item, model, prompt, timeout):
+    url = API_BASE + urllib.parse.quote(model, safe="") + ":generateContent"
+    body = json.dumps({"contents": [{"role": "user", "parts": [{"text": prompt}]}]}).encode()
+    req = urllib.request.Request(url, data=body, method="POST", headers={
+        "Content-Type": "application/json", "x-goog-api-key": item["key"],
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=max(0.1, timeout)) as response:
+            raw = response.read()
+            status, headers = response.status, response.headers
+    except urllib.error.HTTPError as exc:
+        status, headers = exc.code, exc.headers
+        try:
+            raw = (b"" if status in (408, 500, 502, 503, 504)
+                   else read_http_error_body(exc, timeout))
+        finally:
+            exc.close()
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        raise ConnectionError(type(exc).__name__)
+    try: detail = json.loads(raw.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError): detail = {}
+    if status < 200 or status >= 300:
+        api_status, reasons = safe_error(detail)
+        raise ApiFailure(status, api_status, reasons, retry_delay(headers, detail))
+    candidates = detail.get("candidates") if isinstance(detail, dict) else None
+    if not candidates or not isinstance(candidates[0], dict):
+        raise TaskError(70, "API returned no candidate")
+    finish = candidates[0].get("finishReason", "")
+    if finish in {"SAFETY", "RECITATION", "LANGUAGE", "BLOCKLIST", "PROHIBITED_CONTENT",
+                  "SPII", "IMAGE_SAFETY", "IMAGE_PROHIBITED_CONTENT", "IMAGE_RECITATION",
+                  "IMAGE_OTHER", "CONTENT_BLOCKED"}:
+        raise TaskError(65, "request was blocked by Gemini content policy")
+    parts = candidates[0].get("content", {}).get("parts", [])
+    answer = "".join(part.get("text", "") for part in parts if isinstance(part, dict))
+    if not answer: raise TaskError(70, "API returned an empty text answer")
+    return answer
+
+
+class ApiFailure(Exception):
+    def __init__(self, http, status, reasons, delay):
+        self.http, self.status, self.reasons, self.delay = http, status, reasons, delay
+
+
+def eligible_keys(data, explicit, model, now):
+    keys = data["keys"]
+    if explicit:
+        if explicit not in keys: raise TaskError(64, "unknown key alias")
+        order = [explicit]
+    else:
+        active = data.get("active")
+        order = sorted(keys, key=lambda a: (0 if a == active else 1, keys[a].get("priority", 999), a))
+    cds = state_snapshot().get("cooldowns", {})
+    chosen = []
+    for alias in order:
+        item = keys[alias]
+        group = item.get("group", item.get("project", alias))
+        if item.get("invalid"): continue
+        cd = cds.get(cooldown_key(group, model))
+        if cd and (cd.get("blocked") or int(cd.get("until", 0)) > now): continue
+        chosen.append((alias, item))
+    return chosen
+
+
+def request_with_retry(item, model, prompt, deadline, attempts, budget):
+    last = None
+    for attempt in range(attempts):
+        if budget[0] <= 0: raise TaskError(69, "total request limit reached")
+        budget[0] -= 1
+        remaining = deadline - time.monotonic()
+        if remaining <= 0: raise TaskError(124, "total timeout reached")
+        try:
+            return send_request(item, model, prompt, remaining)
+        except ConnectionError as exc:
+            last = exc
+            if attempt + 1 >= attempts: break
+            delay = min(2 ** attempt, 8, max(0, deadline - time.monotonic()))
+            if deadline - time.monotonic() <= delay: break
+            if delay: time.sleep(delay)
+        except ApiFailure as exc:
+            if exc.http not in (408, 500, 502, 503, 504): raise
+            last = exc
+            if attempt + 1 >= attempts: break
+            delay = min(2 ** attempt, 8, max(0, deadline - time.monotonic()))
+            if deadline - time.monotonic() <= delay: break
+            if delay: time.sleep(delay)
+    if isinstance(last, ApiFailure): raise last
+    raise TaskError(69, "network failure after bounded retry; stopped before trying other keys")
+
+
+def run_request(args):
+    if not re.fullmatch(r"[A-Za-z0-9._-]{1,128}", args.model): raise TaskError(64, "invalid model identifier")
+    if args.timeout < 1 or args.timeout > 3600: raise TaskError(64, "timeout must be 1..3600 seconds")
+    prompt = decode_prompt(args.prompt_file)
+    data = read_keys()
+    if not data["keys"]: raise TaskError(78, "no API keys configured; run gemini-task keys add key1")
+    deadline = time.monotonic() + args.timeout
+    attempts_per_key = TRANSIENT_RETRIES + 1
+    request_budget = [MAX_REQUESTS]
+    candidates = eligible_keys(data, args.key, args.model, int(time.time()))
+    failures = []
+    blocked_groups = set()
+    if not candidates: raise TaskError(69, "no available key/project for this model; inspect status and cooldowns")
+    for alias, item in candidates:
+        group = item.get("group", item.get("project", alias))
+        if group in blocked_groups: continue
+        try:
+            answer = request_with_retry(item, args.model, prompt, deadline,
+                                        attempts_per_key, request_budget)
+            if not args.key:
+                mutate_keys(lambda latest: latest.update({"active": alias}))
+            print(f"gemini-task: answer received from {alias} ({args.model})", file=sys.stderr)
+            sys.stdout.write(answer + ("" if answer.endswith("\n") else "\n"))
+            return
+        except ApiFailure as exc:
+            tag = exc.status or f"HTTP_{exc.http}"
+            if exc.http == 401 or "API_KEY_INVALID" in exc.reasons:
+                mark_invalid(alias)
+                failures.append(f"{alias}=invalid-key")
+                if args.key: break
+                continue
+            if exc.http == 429 or exc.status == "RESOURCE_EXHAUSTED":
+                hard_quota = "QUOTA_EXCEEDED" in exc.reasons
+                delay = exc.delay if exc.delay is not None else 60
+                blocked_groups.add(group)
+                until = set_cooldown(group, args.model,
+                                     delay, "429", blocked=hard_quota and exc.delay is None)
+                description = ("quota-blocked; clear only after checking project quota" if hard_quota and exc.delay is None else
+                               "quota/rate-limited until " + datetime.fromtimestamp(until, timezone.utc).isoformat())
+                failures.append(f"{alias}={description}")
+                if args.key: break
+                continue
+            if exc.http in (408, 500, 502, 503, 504):
+                if exc.http == 503:
+                    raise TaskError(69, "HTTP 503 after at most two same-key retries; stopped before trying other keys")
+                raise TaskError(69, f"HTTP {exc.http} after bounded retry; stopped before trying other keys")
+            if exc.http in (400, 402, 403, 404):
+                raise TaskError(65, f"request rejected (HTTP {exc.http}, {exc.status or 'API_ERROR'}); no key rotation")
+            raise TaskError(69, f"API request failed (HTTP {exc.http}, {tag})")
+        except TaskError as exc:
+            if exc.code == 124: raise
+            raise
+    detail = "; ".join(failures) if failures else "request limit reached"
+    raise TaskError(69, "all available sources failed: " + detail)
+
+
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    secure_dir()
+    try:
+        parsed = parse_command(argv)
+        if parsed:
+            _, cmd = parsed
+            if cmd.cmd == "status": command_status()
+            elif cmd.cmd == "keys" and cmd.action == "add": add_key(cmd.alias)
+            elif cmd.cmd == "keys" and cmd.action == "use": set_active(cmd.alias)
+            elif cmd.cmd == "keys" and cmd.action == "priority":
+                def update(data):
+                    if cmd.alias not in data["keys"]: raise TaskError(64, "unknown key alias")
+                    data["keys"][cmd.alias]["priority"] = cmd.rank
+                mutate_keys(update)
+            elif cmd.cmd == "keys" and cmd.action == "remove": remove_key(cmd.alias)
+            elif cmd.cmd == "cooldown" and cmd.action == "clear":
+                def clear(state):
+                    state.setdefault("cooldowns", {}).pop(cooldown_key(cmd.group, cmd.model), None)
+                    return None, state
+                locked_state(clear)
+            return 0
+        parser, args = parse_args(argv)
+        if args.key and not re.fullmatch(r"key[1-5]", args.key): raise TaskError(64, "--key must be key1..key5")
+        if args.timeout < 1 or args.timeout > 3600: raise TaskError(64, "timeout must be 1..3600 seconds")
+        old_handler = signal.signal(signal.SIGALRM, lambda *_: (_ for _ in ()).throw(TaskError(124, "total timeout reached")))
+        old_timer = signal.setitimer(signal.ITIMER_REAL, args.timeout)
+        try:
+            run_request(args)
+        finally:
+            signal.setitimer(signal.ITIMER_REAL, *old_timer)
+            signal.signal(signal.SIGALRM, old_handler)
+        return 0
+    except TaskError as exc:
+        print(f"gemini-task: {exc.message}", file=sys.stderr)
+        return exc.code
+    except KeyboardInterrupt:
+        print("gemini-task: interrupted", file=sys.stderr)
+        return 130
+
+
+if __name__ == "__main__":
+    sys.exit(main())
