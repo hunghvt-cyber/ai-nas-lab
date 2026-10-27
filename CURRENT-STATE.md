@@ -279,3 +279,36 @@ New path checked separately from the previous branch-scoped env attempt. Officia
 The previous branch-scoped project env attempt remains blocked by absent Git linkage, but a separate direct CLI deployment now works without linking Git. Authenticated Vercel CLI 65.4.0 deployed exact candidate commit `082824c51f305a9c94ecdea6aafb9a479a4ccf5e` to `hunghvt-notes` with explicit `--environment preview` and a 0600 external `--local-config` runtime env file. No secret was placed in argv, Git or emitted logs; temporary files were removed. No shared Preview variable or Production setting changed.
 
 Deployment `dpl_H1L38KavsPzE4CbYnpSetZUGnW38` is READY, target Preview (`target:null`), no aliases: https://hunghvt-notes-7akbwqjy0-hunghvt.vercel.app. Readback confirms exact existing Vercel OIDC issuer/audience/subject. Live health, login, Firestore create/read, trash and purge all passed. The synthetic note is purged; the dedicated test vault has no active/trash note data. Two earlier trial deployments were deleted. Production remains Koofr and untouched. Details: `research/notes-vercel-direct-preview-firestore-result-20261027.md`.
+
+
+### Production Firestore migration package — 27/10/2026
+
+Supersedes the earlier statements that NAS ADC, Vercel Preview OIDC, and a real
+Firestore smoke were unverified. The isolated NAS ADC now succeeds against
+`notes-lab-56f0f/(default)`; the synthetic smoke passed. A direct deployment of
+the verified Notes candidate to Vercel Preview also passed the synthetic app and
+OIDC→STS→Firestore flow without linking Git. Production remains Koofr.
+
+Read-only GCP inspection currently sees only the test project `notes-lab-56f0f`
+(Notes Lab), whose only database is `(default)`. The Preview service account has
+unconditional project-level `roles/datastore.user`; it must not be reused for
+real Notes. No dedicated Production GCP project is currently discoverable, so
+Production WIF/service account are intentionally not provisioned and no billing
+was enabled.
+
+Added to the Notes candidate: a GET-only Koofr exporter with before/after
+catalog verification, per-record hash/ID checks, private 0700/0600 local output,
+and no 2 MB endpoint cap; plus a rollback helper that writes the current
+Firestore snapshot under the original Koofr namespace lock, verifies the exact
+pre-cutover catalog hash/epoch, and preserves token-box/share links and edits.
+Node 24 focused migration/rollback tests: 38/38 PASS. This is fixture evidence only. Real Koofr
+snapshot size/count/hash remain unknown because Vercel Production variables are
+Secrets and the CLI reports six values cannot be pulled. No Koofr read/write or
+Production deployment occurred.
+
+Vercel CLI identity was verified as team `hunghvt`, project `hunghvt-notes`.
+An `env run` argument parsing failure briefly created the empty project
+`notes-migration-runner`; Vercel confirmed it had zero deployments and zero
+variables, and the exact project was deleted. The accidental local `.vercel`
+link and `.gitignore` were removed. Current next blockers and exact cutover plan:
+[research/notes-firestore-production-package-20261027.md](research/notes-firestore-production-package-20261027.md).
