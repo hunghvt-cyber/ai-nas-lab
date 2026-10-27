@@ -342,3 +342,7 @@ backup path retains its 2 MB cap. Remaining task is a reviewed cutover with a
 fresh final snapshot after a short write freeze; rollback must export the latest
 Firestore state first and publish it into the original Koofr namespace using
 the recorded baseline catalog hash. Downtime duration remains unmeasured.
+An optional final read-only Resource Manager policy refresh from NAS was
+rate-limited with HTTP 429; no IAM changes followed the successful runtime
+deny/allow checks. Re-read current bindings in cutover preflight before changing
+the Production runtime config.
