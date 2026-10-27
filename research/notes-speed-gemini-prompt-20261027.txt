@@ -1,0 +1,34 @@
+Nhiệm vụ: phản biện độc lập phương án tăng tốc Notes cá nhân đang dùng Vercel + Koofr WebDAV. Trả lời tiếng Việt, tối đa 1000 từ. Chỉ tư vấn; không chạy lệnh. Không có dữ liệu Notes, secret hay log thật trong prompt.
+
+Mong muốn: mở/soạn nhanh như trước dùng Vercel Blob, gần cảm giác Google Keep. Không đánh đồng phản hồi giao diện với độ bền cloud hoặc đồng bộ sang máy khác. Không hứa số ms khi chưa đo. Không suy đoán kiến trúc riêng của Google Keep.
+
+Nguồn đọc ngày 27/10/2026: hunghvt-cyber/Hunghvt-notes, nhánh release/minimal-notes (không phải main). Đây là source nhánh release, chưa đối chiếu deployment hiện tại. Tài liệu cho biết một owner và link chia sẻ cho người xem/sửa. Quyết định hiện hành: Koofr nguồn chính, Vercel; không thêm NAS/Blob/Redis/database dependency. Giữ CAS, operation ID bất biến, receipts, fencing, hash readback, live revoke/share ACL và mọi bản nháp. Không triển khai/migration/bỏ guard. Các phương án vi phạm quyết định chỉ được nêu riêng, không khuyến nghị thực hiện tự động.
+
+Đọc mã:
+- lib/store.mjs NoteStore.locked: LOCK root Depth:infinity, GET catalog; nếu thay đổi thì PUT catalog với lock token rồi GET readback; UNLOCK.
+- listWithFolders: 3 lượt WebDAV (LOCK/GET/UNLOCK).
+- readContent cache miss: snapshot locked 3 lượt; GET immutable revision ngoài lock 1 lượt; snapshot locked kiểm live ACL/epoch/head/hash/folder/version 3 lượt => 7 lượt; đổi head thì thử lại toàn bộ một lần.
+- Owner knownRevision trùng: sau snapshot đầu trả notModified, 3 lượt.
+- Lưu note cũ thông thường không replay: LOCK + GET catalog + GET old immutable + GET new immutable path check-existence + PUT immutable + GET verify immutable + PUT catalog + GET verify catalog + UNLOCK = 9 lượt tuần tự.
+- Catalog giữ HEAD, hash, folders, shares/ACL, receipts; immutable note giữ tối đa 5 bản lịch sử. Koofr từng không thực thi If-Match/If-None-Match như CAS kỳ vọng; không thể bỏ LOCK vì cho rằng ETag chắc chắn đủ.
+- Mỗi HTTP request tạo NoteStore mới và một https.Agent keepAlive maxSockets=1. Chưa có session connection pooling qua request. Đã có live evidence trước đây ghi inherited lock-token bị từ chối khi dùng parallel sockets. Không tùy tiện tăng sockets.
+- Mỗi tab có request lane tuần tự, ưu tiên ghi rồi foreground rồi background; GET đồng thời giống nhau được gộp. Không ngắt request đang chạy.
+- public/app.js owner giữ preview list trong IndexedDB; full content chỉ session memory. Mở cache miss đợi API rồi mới fill editor; cache hit hiển thị trước rồi revalidate. Quyết định 19/10 bỏ tùy chọn private-device/full-content disk cache; không tự bật lại cache nội dung bền trên máy.
+- Có IndexedDB giữ draft/frozen operation, autosave; UI Đã lưu chỉ sau matching server ack. Shared không persistent content cache, luôn kiểm quyền sống.
+- lib/preview-api.mjs gọi passwordProvider.current trước mỗi owner API request trong mode sharedAuth. lib/shared-auth.mjs POST no-store tới Homepage auth version; timeout 12 giây. Tài liệu 26/10 xác nhận mode này đã triển khai. Không có số đo thời gian phụ thuộc này.
+- Backend mới tạo store sau bước authorize. Auth POST còn store.loginAttempt dùng khóa catalog trước verify mật khẩu qua Homepage.
+- Khóa toàn kho gây 423; foreground retry 120 giây/tối đa32, 1–10s jitter. Đó là giao hàng chịu lỗi, không phải giảm độ trễ.
+
+Đã làm trước đây: bootstrap list+folders một lượt; giảm duplicate lock cycles; trả note inline sau save; lazy share list; queue ưu tiên; gộp GET; giảm poll nền; session cache; bounded patient retry. Không đề xuất chúng như phát hiện mới.
+Tradeoff lịch sử: step1 open trong một khóa 4 WebDAV; step2 đưa content ra ngoài khóa + xác thực cuối tăng thành 7. Step2 nhằm rút thời gian giữ lock, không chứng minh giảm latency một người. Fixture synchronized 50 reader/10 editor không chứng minh tải thật. Smoke Koofr ngày18/10 lưu owner 3.025/6.447/7.400 giây, shared 4.042 giây, là số lịch sử rất ít mẫu.
+
+Hướng Codex đang cân nhắc, xin phản biện chứ không mặc định đồng ý:
+A. Trong ràng buộc hiện tại: đo phase/auth/Homepage/WebDAV/socket/backoff; thử owner-only single-lease content read 4 calls, shared giữ 7; kiểm tra CAS/revocation/lease expiry, chấp nhận tradeoff khóa lâu hơn; nghiên cứu connection reuse bảo toàn affinity nhưng không tạo global queue nghẽn hơn. Auth coalescing chỉ gộp in-flight, không tự cache TTL làm chậm vô hiệu hóa mật khẩu.
+B. Muốn mở tức thì qua reload/thiết bị: owner full-content cache cục bộ + đồng bộ nền có version/draft/CAS, nhưng đây thay đổi quyết định cache hiện hành; cần nêu rõ được/mất, không triển khai. Không giải quyết lần đầu hoặc người nhận share mới, và không làm cloud ack nhanh.
+C. Nếu cần cloud ack và multi-device thật sự dưới giây dù cache lạnh, có thể phải đổi transaction backend; đây trái ràng buộc hiện hành, chỉ nêu điều kiện và không tự chuyển dữ liệu/dịch vụ.
+
+Hãy trả:
+1. Xếp hạng nguyên nhân có căn cứ, tách mã nguồn, lịch sử và giả thuyết chưa đo.
+2. Phản biện A/B/C; đề xuất phương án khác nếu có. Cách nào cải thiện p95 mà không nới ACL/CAS/độ bền? Owner-only single lease có đáng làm không, thử nghiệm nhỏ nhất?
+3. Chỉ ra đánh đổi của cache/per-note locks/materialized read model/native Koofr API; không khẳng định native API nhanh hay có CAS nếu chưa có bằng chứng.
+4. Đề xuất một bước đầu có giá trị nhất và tiêu chí đo; mục tiêu đề xuất tách thời gian editor sẵn sàng, cloud ack, máy khác thấy thay đổi. Không chạy load benchmark/đọc dữ liệu production.
