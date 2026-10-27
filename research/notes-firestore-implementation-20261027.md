@@ -35,7 +35,7 @@ revision fencing, and auth checks are retained in the repository contract.
 
 ## Evidence and remaining proof
 
-- Full offline suite on Node 24: 169 passed, 0 failed. `npm test` uses fixture
+- Initial full offline suite on Node 24: 169 passed, 0 failed. `npm test` uses fixture
   and in-memory fake implementations; this does **not** establish real
   Firestore transaction, IAM, latency, or billing behavior.
 - Gemini reviewed one filtered architecture/race summary via `/home/admin/bin/gemini-task`.
@@ -43,9 +43,9 @@ revision fencing, and auth checks are retained in the repository contract.
   purge concerns were checked against transaction guards and resume behavior.
   Its reference to a 500-write transaction ceiling was stale; current official
   release notes document removal of that old limit.
-- No real Firestore API request, migration, billing action, production read/write
-  or deployment has occurred. The user's Cloud Shell smoke did not produce
-  confirmed evidence; this workflow no longer depends on Cloud Shell.
+- The initial report preceded authorization. The user later completed the
+  isolated NAS ADC sign-in, and the final direct NAS smoke is recorded below.
+  No migration, billing action, production read/write or deployment occurred.
 
 ## Smallest next step: authorize the NAS smoke once
 
@@ -56,24 +56,39 @@ its archive checksum matched Google's official value. The wrapper
 `/home/admin/.local/state/notes-gcloud-home/.config/gcloud`. No credentials from
 Gemini or another application were accessed. The isolated ADC file is absent.
 
-One human Google authorization is needed for the NAS account that already has
-`roles/datastore.user` on `notes-lab-56f0f`. In an interactive NAS terminal:
+The user completed this single authorization step for the NAS account with
+`roles/datastore.user` on `notes-lab-56f0f`:
 
 ```sh
 /home/admin/bin/notes-gcloud auth application-default login --no-launch-browser --disable-quota-project
 ```
 
-Open the printed Google URL on the phone/iPad and enter the one-time code only
-in that terminal. Never send the code to chat. This uses user ADC only for the
-NAS smoke, does not set a quota project or enable billing, and is separate from
-Vercel production OIDC. After that step Codex can run and inspect the smoke
-itself; the user does not need to use Cloud Shell or relay output.
+It used user ADC only for the NAS smoke, did not set a quota project or enable
+billing, and is separate from Vercel production OIDC. No credential value was
+read or printed by Codex.
 
-The smoke is fixed to project `notes-lab-56f0f`. It creates two random,
+The smoke was fixed to project `notes-lab-56f0f`. It created two random,
 synthetic `notesVaults/{vaultId}` roots, verifies init/save/open/CAS/share/revoke,
 folder delete, trash/restore/purge, and snapshot count/hash restore, then removes
 only those two roots. It does not create a project/database or enable billing.
-The test runner requires Node 24.
+The runner returned `PASS` on 2026-10-27 using Node 24 and the `(default)`
+database. It verified both roots were absent afterward. Observed single-run
+timings: initialize 1.35s, save 0.38s, owner open 0.40s, folder delete 0.95s,
+trash/restore 1.06s, snapshot restore 2.02s, purge 2.06s. These are end-to-end
+NAS observations, not a performance benchmark.
+
+Two defects surfaced only in this real smoke and were fixed: creating a note in
+a previously unseen folder used a timestamp before initialization; snapshot
+capture incorrectly treated a completed deleted-folder tombstone as an active
+deletion. Regression tests now cover both. The final full offline Node 24 suite
+passes 170/170. Changes are being pushed to the same isolated branch; no
+production release or real Notes data has been touched.
+
+The native integration and migration/rollback tooling are review-ready, not
+activated. Production still requires reviewed Vercel GCP Workload Identity
+Federation configuration and IAM. The current Koofr snapshot endpoint is capped
+at 2 MiB; if the real Notes snapshot is larger, a streaming Koofr export is a
+pre-migration requirement. No production data size was read.
 
 ## Official references consulted
 

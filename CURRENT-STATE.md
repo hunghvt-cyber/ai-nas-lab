@@ -214,3 +214,27 @@ not relay output. Cloud authorization and a successful real smoke are still
 unverified. See `research/notes-firestore-implementation-20261027.md` and the
 Hunghvt-notes branch documents `docs/FIRESTORE-NATIVE.md` and
 `docs/FIRESTORE-CLOUD-SMOKE.md`.
+
+### Real Firestore smoke complete — 27/10/2026
+
+The user completed the isolated NAS ADC sign-in. Codex ran the smoke directly
+against `notes-lab-56f0f` / `(default)`; it returned `PASS` for init, owner
+save/open, known-revision read, CAS conflict, share/open/revoke, folder delete,
+trash/restore, snapshot count/hash restore and purge. Both synthetic vault roots
+were deleted and an independent read confirmed they are absent. This was a real
+Firestore API test, not an offline mock. One run's end-to-end operation timings
+are recorded in Hunghvt-notes `docs/FIRESTORE-NATIVE.md`; they include network
+overhead and are not a benchmark.
+
+The first real attempts found and fixed two defects missed by fakes: first save
+into a new folder used its timestamp before initialization, and backup refused
+a completed folder-deletion tombstone as if work remained in progress. Both have
+regression tests. Final offline Node 24 suite: 170/170. Latest Hunghvt-notes
+change is being committed to the same safe branch; no release branch, production
+deployment, Koofr data, billing, or real Notes migration was touched.
+
+Implementation and migration/rollback are prepared for review, not activated.
+Production still needs a reviewed Vercel GCP Workload Identity Federation
+configuration, exact project/service-account IAM, and production switch approval.
+The current Koofr snapshot export limit remains 2 MiB; larger real data requires
+a streaming snapshot export before migration. No production data size was read.
