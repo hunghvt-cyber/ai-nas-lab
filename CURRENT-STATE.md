@@ -231,12 +231,32 @@ overhead and are not a benchmark.
 The first real attempts found and fixed two defects missed by fakes: first save
 into a new folder used its timestamp before initialization, and backup refused
 a completed folder-deletion tombstone as if work remained in progress. Both have
-regression tests. Final offline Node 24 suite: 170/170. Latest Hunghvt-notes
-change is being committed to the same safe branch; no release branch, production
-deployment, Koofr data, billing, or real Notes migration was touched.
+regression tests. A later artifact review found the published source and lockfile
+had been clipped by output capture; that specific published artifact was not
+valid and must not be used. It is now repaired and verified as described below.
+No release branch, production deployment, Koofr data, billing, or real Notes
+migration was touched.
 
 Implementation and migration/rollback are prepared for review, not activated.
 Production still needs a reviewed Vercel GCP Workload Identity Federation
 configuration, exact project/service-account IAM, and production switch approval.
 The current Koofr snapshot export limit remains 2 MiB; larger real data requires
 a streaming snapshot export before migration. No production data size was read.
+
+### Published source repair verified — 27/10/2026
+
+The source-integrity review was correct: remote commit `6dc6d18` contained a
+truncated `lib/firestore-native-repository.mjs`; inspection also found the
+published `package-lock.json` was clipped. Both full files were restored from
+verified local versions. Candidate [commit `082824c`](https://github.com/hunghvt-cyber/Hunghvt-notes/commit/082824c51f305a9c94ecdea6aafb9a479a4ccf5e)
+is now remote HEAD of the same safe branch.
+
+From a fresh checkout of that exact commit on Node 24.22.1: syntax check passed,
+marker scan found no hits in 124 tracked code/docs/config files, `npm ci`
+installed 143 packages, full `npm test` passed 170/170, and the isolated real
+Firestore smoke passed all 11 checks. A separate read confirmed both synthetic
+vault roots were removed. Git blob hashes match the tested checkout:
+repository `3454137816de08aaf9e7ab302c37b4f9ae1d9aea`, lockfile
+`8c4e1c62ffba93eb05f2b1bf1eecbdfd0a848892`. WIF/deploy/migration remain paused;
+Koofr production is unchanged. Details are in
+`research/notes-firestore-published-source-review-20261027.md`.

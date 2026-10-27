@@ -37,3 +37,30 @@ The current GitHub source cannot be the same executable module as the reported s
 
 ## Performance evidence already documented
 docs/FIRESTORE-NATIVE.md records one real NAS run: save ~0.38s, owner open ~0.40s. These are useful single-run observations, not p50/p95 or Vercel/browser timings. Do not treat functionality PASS as proof of Google Keep-equivalent latency.
+
+## Repair and artifact-bound verification — 27/10/2026
+
+The finding was valid. In addition to the repository module, the published
+`package-lock.json` was also corrupted by captured output, which made `npm ci`
+fail on a clean checkout. Neither file was repaired by deleting marker lines.
+
+Recovered the complete source from the local file used for the successful smoke,
+including the two real-smoke fixes. Restored the complete lockfile from the
+verified local tree. The repaired remote candidate is
+[`082824c`](https://github.com/hunghvt-cyber/Hunghvt-notes/commit/082824c51f305a9c94ecdea6aafb9a479a4ccf5e)
+on the same isolated branch. Its tree equals the tested local candidate tree.
+
+Verification was run from a fresh detached checkout of that exact commit using
+Node 24.22.1: `npm ci` installed 143 packages, `node --check
+lib/firestore-native-repository.mjs` passed, the truncation-marker scan found no
+matches in 124 tracked code/docs/config files (excluding the Inbox data file),
+and `npm test` passed 170/170. The isolated real Firestore smoke then returned
+`PASS` for all 11 checks on `notes-lab-56f0f` / `(default)`; a separate read
+confirmed its two synthetic roots were deleted.
+
+Integrity is bound to Git objects: the exact commit references module blob
+`3454137816de08aaf9e7ab302c37b4f9ae1d9aea` and lockfile blob
+`8c4e1c62ffba93eb05f2b1bf1eecbdfd0a848892`. Both hashes match the clean tested
+checkout and were independently fetched from GitHub. Remote branch HEAD is the
+candidate commit above. WIF, deployment and migration remain paused until this
+review is accepted; Koofr production remains unchanged.
