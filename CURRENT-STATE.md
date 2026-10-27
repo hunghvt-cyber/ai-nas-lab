@@ -272,3 +272,10 @@ Migration review confirms Koofr export stops at 2,000,000 bytes. No real Notes s
 ## Vercel per-deployment Preview attempt — 2026-10-27
 
 New path checked separately from the previous branch-scoped env attempt. Official CLI v65.4.0 help confirms `--env KEY=VALUE` and explicit `--environment preview`, but secret values would be process arguments, so none were passed. CLI auth check returned `loggedIn:false`; harmless dry-run failed with `You do not have access to the specified account` for scope `hunghvt`. Vercel REST API v13 documents no per-deployment env body field. No deployment or environment mutation occurred; WIF unchanged. Minimum next step is authenticate local Vercel CLI for team `hunghvt` (device/browser flow); no Git linkage is required for this CLI path. Details: `research/notes-vercel-per-deployment-env-20261027.md`.
+
+
+## Direct Vercel Preview → Firestore verified — 2026-10-27
+
+The previous branch-scoped project env attempt remains blocked by absent Git linkage, but a separate direct CLI deployment now works without linking Git. Authenticated Vercel CLI 65.4.0 deployed exact candidate commit `082824c51f305a9c94ecdea6aafb9a479a4ccf5e` to `hunghvt-notes` with explicit `--environment preview` and a 0600 external `--local-config` runtime env file. No secret was placed in argv, Git or emitted logs; temporary files were removed. No shared Preview variable or Production setting changed.
+
+Deployment `dpl_H1L38KavsPzE4CbYnpSetZUGnW38` is READY, target Preview (`target:null`), no aliases: https://hunghvt-notes-7akbwqjy0-hunghvt.vercel.app. Readback confirms exact existing Vercel OIDC issuer/audience/subject. Live health, login, Firestore create/read, trash and purge all passed. The synthetic note is purged; the dedicated test vault has no active/trash note data. Two earlier trial deployments were deleted. Production remains Koofr and untouched. Details: `research/notes-vercel-direct-preview-firestore-result-20261027.md`.
