@@ -111,3 +111,24 @@ names unchanged. Focused native tests were then run separately and passed.
 The Notes branch is local-only, based on the previous adapter branch and
 uncommitted at this handoff; no push/deploy/cloud access occurred. See
 `Hunghvt-notes` branch `codex/notes-firestore-native-20261027`.
+
+## Follow-up: offline suite and Cloud Shell package — 27/10/2026
+
+The earlier missing `iron-session` report was a checkout dependency-install
+state, not a missing manifest/lock entry. `npm ci --ignore-scripts --no-audit
+--no-fund` completed successfully with Node 24. Notes branch
+`codex/notes-firestore-cloudshell-20261027` is now on GitHub at
+`ebd704d3a149f5756dbc8b9a41eda5f326efe09b`. Its offline test runner removes
+Koofr/OIDC variables and refuses non-loopback network requests; mocked cleanup
+logs are suppressed so they cannot be mistaken for real Koofr deletion. Local
+Node 24 suite: 163/163 passed. Cloud Shell guide and script are packaged; no
+real Firestore call, billing change, or Vercel deployment occurred. Vercel
+deployment query for that exact branch returned zero results after the branch
+config disabled auto-deploy. GitHub CI was still in progress when checked.
+
+Use the branch's `docs/FIRESTORE-CLOUD-SMOKE.md` on mobile Cloud Shell for the
+prepared one-command run. It requires an existing dedicated non-production
+Firestore project/database and `roles/datastore.user`; it does not provision a
+project/database. The guide installs official Node 24 in `/tmp`, checks the
+active `gcloud` project, and gives an exact-run-ID cleanup command for an
+interrupted smoke. NAS ADC and production Vercel OIDC remain separate.

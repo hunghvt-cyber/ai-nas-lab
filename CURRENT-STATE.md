@@ -147,3 +147,26 @@ files because `iron-session` is absent; existing fixture cleanup reported only
 39 allowlisted synthetic folders removed and production root unchanged. Details
 and official links: `research/notes-firestore-20261027.md` and
 `Hunghvt-notes/docs/firestore-native-design.md`.
+
+### Isolated Cloud Shell smoke ready — 27/10/2026
+
+Updated Hunghvt-notes branch `codex/notes-firestore-cloudshell-20261027`, commit
+`ebd704d3a149f5756dbc8b9a41eda5f326efe09b` (GitHub). `npm ci` with the committed
+lockfile succeeded under Node 24; the repository's default test command now
+uses an offline harness that strips Koofr/OIDC configuration and blocks network
+requests outside loopback. Local Node 24 suite passed 163/163, and GitHub Actions
+was running the branch CI at handoff. Vercel's exact-branch auto-deploy flag is
+disabled; Vercel returned zero deployments for that branch. No Cloud Firestore
+probe has run yet.
+
+For the smallest cloud check, use an already existing dedicated non-production
+project with default Firestore Native DB and a user granted `roles/datastore.user`.
+On phone/iPad choose it in [Google Cloud Console](https://console.cloud.google.com/),
+open [Cloud Shell](https://shell.cloud.google.com/?show=terminal), and paste the
+fully prepared single command in `Hunghvt-notes/docs/FIRESTORE-CLOUD-SMOKE.md`.
+It downloads Node 24 only under `/tmp`, uses the selected `gcloud` project and
+Cloud Shell human auth, creates one random synthetic note/share, measures
+owner/save/CAS/share/revoke, then removes those exact documents. It will not
+create a project/database or enable billing. This path is separate from NAS ADC
+and Vercel production OIDC. See the branch's smoke guide; no secret or credential
+is needed in chat.
