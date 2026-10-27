@@ -10,8 +10,10 @@ Nguồn bàn giao cho Codex phối hợp Gemini API trên NAS. Cập nhật 27/1
 
 ## Trạng thái
 
-Theo báo cáo Codex trên NAS do người dùng cung cấp trong hội thoại ngày 27/10: `gemini-task` gọi API thành công bằng key1 và `gemini-3.5-flash-lite`; có câu trả lời thử OK và tác vụ phân tích thực tế. Phiên ChatGPT ghi tài liệu này không trực tiếp SSH hoặc đọc mã wrapper trên NAS.
+Theo báo cáo Codex trên NAS do người dùng cung cấp trong hội thoại ngày 27/10: `gemini-task` gọi API thành công bằng key1 và `gemini-3.5-flash-lite`; có câu trả lời thử OK và tác vụ phân tích thực tế. Phiên ChatGPT không trực tiếp SSH vào NAS; đã đọc bản nguồn do người dùng chuyển tiếp và đối chiếu checksum.
 
-Repo hiện lưu tài liệu bàn giao, **chưa chứa mã nguồn wrapper hoặc bộ test**. Không dùng tài liệu như bằng chứng đã sao lưu/khôi phục được triển khai.
+Repo đã lưu [wrapper nguyên bản](src/gemini-task), SHA-256 khớp file NAS được báo cáo, và [11 kiểm thử offline mới](tests/test_baseline.py). Đây chưa phải bằng chứng phục hồi/triển khai trên NAS. Bộ test cũ trên NAS chưa được cung cấp.
+
+Status mới liệt kê đủ 5 alias; chỉ key1 có bằng chứng API thành công được báo cáo. Xem [rà soát và ba lỗi còn tồn tại](REVIEW-20261027.md), gồm xử lý câu trả lời bị cắt, cooldown lẻ và lọc error.status.
 
 Mục tiêu: Codex điều phối, Gemini tư vấn/phản biện qua API; tối đa 5 key được thành viên đồng ý cung cấp từ 5 project độc lập. Không cần Chrome, OAuth hay cổng dịch vụ mới.
