@@ -94,3 +94,74 @@ Official sources: [Vercel GCP OIDC](https://vercel.com/docs/oidc/gcp),
 [Google WIF](https://docs.cloud.google.com/iam/docs/workload-identity-federation),
 [Firestore IAM conditions](https://docs.cloud.google.com/firestore/native/docs/manage-databases),
 [Vercel env CLI](https://vercel.com/docs/cli/env).
+
+## Verified follow-up — 2026-10-27
+
+This follow-up supersedes the outdated “dedicated project still needed”,
+“Preview identity still authorized”, and “no real snapshot” statements above.
+The owner's decision is to reuse `notes-lab-56f0f`, database `(default)`, for
+Notes after revoking Preview access. No extra project or billing was created.
+
+### IAM and runtime identity
+
+- Removed Preview SA's project `roles/datastore.user` grant and its exact
+  Preview `roles/iam.workloadIdentityUser` binding; disabled pool
+  `vercel-notes-preview`. A real request from the old Preview runtime identity
+  was denied twice after propagation. Direct/project and service-account
+  bindings were checked; no inherited matching grant was found.
+- Created separate SA `notes-production-firestore` and pool/provider
+  `vercel-notes-production`. Issuer is `https://oidc.vercel.com/hunghvt`,
+  audience `https://vercel.com/hunghvt`, with exact subject
+  `owner:hunghvt:project:hunghvt-notes:environment:production`. The only
+  production impersonation binding is that subject. Firestore data access is
+  conditioned on database `(default)` in `notes-lab-56f0f`. No user-managed
+  service-account keys or billing changes.
+- A staged Production Vercel runtime completed a real Firestore read of a
+  synthetic absent probe document through OIDC → STS → Firestore. It wrote no
+  Notes data.
+
+### Read-only Koofr snapshot
+
+A temporary exporter was run on a staged Production deployment behind the
+project's Vercel SSO protection. Unauthenticated access returned 302; the
+authenticated health check reported `koofr-v1`; POST returned 405. The
+temporary handler had only protected health/identity/GET manifest, record and
+final-stability actions, with no write route or background job. It used the
+existing Production runtime Secrets without reading them back. The exporter
+verified IDs and immutable record hashes and compared the same catalog hash
+before and after all GET requests.
+
+The private snapshot is outside both repositories at
+`/home/admin/.local/state/notes-migration/koofr-production-20261027.json.gz`;
+directory mode is 0700 and file mode 0600. Raw JSON size 1,829,423 bytes;
+gzip size 404,736 bytes; one successful pass, 32 HTTP requests; raw snapshot
+SHA-256 `79d97641b8562f65d0c9c55d4aaf60b861da96483de2d5f0c9756f63775b7c38`,
+gzip file SHA-256
+`3dd8ec69231dfc3afb8ca0e515958d2c7107fe61fe56a126bb62ff17692bdf7a`.
+The migration verifier returned VALID with 28 Notes (6 active, 22 trash), 2
+folders, 11 share records, 24 receipts, 0 erased-ID tombstones, fingerprint
+`5d652b5743f3d79735a1df1f917ff378649a89a767e80073934a9e78192235b5`. No note
+content is recorded here. Snapshot is below the migration CLI's 50 MB limit.
+
+The exporter route/helper, one-time client and all three staged Production
+deployments were removed after validation. The two pre-existing Production
+aliases still resolve to their original deployment IDs; no production domain
+or alias was changed.
+
+### Migration/rollback package and remaining boundary
+
+Notes candidate now supports `.json.gz` input to verify/import/rollback with a
+50 MB expanded-size cap. Native Firestore export supports an explicit 50 MB
+limit for rollback, while the normal app backup keeps its existing 2 MB limit.
+The fresh final Koofr snapshot and import/parity check remain required after an
+approved write freeze. Rollback must export the *current* Firestore snapshot,
+then restore it into the original Koofr namespace against the recorded
+pre-cutover catalog hash and epoch; this carries every post-cutover edit,
+revisions, links/token-box, receipts, trash and tombstones. The helper fails
+closed if the Koofr catalog changed outside the freeze.
+
+No Firestore Notes import, production backend change, write freeze, billing
+action, or Koofr mutation has occurred. Koofr remains live Production. The
+cutover duration is still unmeasured; assess from the final snapshot size and a
+pre-import dry run rather than claiming a number now. Next action is a concrete
+cutover plan for review, not further project setup.

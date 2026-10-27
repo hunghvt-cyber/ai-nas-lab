@@ -312,3 +312,33 @@ An `env run` argument parsing failure briefly created the empty project
 variables, and the exact project was deleted. The accidental local `.vercel`
 link and `.gitignore` were removed. Current next blockers and exact cutover plan:
 [research/notes-firestore-production-package-20261027.md](research/notes-firestore-production-package-20261027.md).
+
+### Koofr snapshot and Production identity update — 27/10/2026
+
+Supersedes the previous blockers above: the owner chose `notes-lab-56f0f` for
+Notes after Preview access is revoked. Preview Firestore and exact-subject
+impersonation grants were removed, its WIF pool disabled, and two real requests
+from the old Preview identity were denied after propagation. A separate
+Production SA/pool/provider now uses only the exact Production subject and a
+database-scoped Firestore grant. No service-account key or billing change.
+
+An SSO-protected staged Production deployment verified the exact Production
+Vercel OIDC → STS → Firestore read against a synthetic nonexistent document.
+The GET-only Koofr exporter passed access/POST-denial checks, verified each
+record hash/ID and stable source catalog, and exported a private 1,829,423-byte
+raw snapshot (404,736-byte gzip) to mode-0600 storage beneath mode-0700
+directory. Migration verification returned VALID: 28 notes (6 active, 22 in
+trash), 2 folders, 11 share records, 24 receipts, no erased tombstones,
+fingerprint `5d652b5743f3d79735a1df1f917ff378649a89a767e80073934a9e78192235b5`.
+Snapshot contents remain outside Git and chat.
+
+Temporary export routes and all three staged deployments were removed. The two
+existing production aliases were verified to remain on their original
+deployments. Koofr still serves production; nothing was imported to Firestore,
+no write freeze or production backend change occurred. Candidate now supports
+private gzip snapshot verification/import and rollback input up to 50 MB, and
+Firestore rollback export has an explicit 50 MB migration limit while the app
+backup path retains its 2 MB cap. Remaining task is a reviewed cutover with a
+fresh final snapshot after a short write freeze; rollback must export the latest
+Firestore state first and publish it into the original Koofr namespace using
+the recorded baseline catalog hash. Downtime duration remains unmeasured.
