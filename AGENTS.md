@@ -10,4 +10,4 @@
 - 5 key được khai báo thuộc 5 project độc lập; alias quota-group là giả định do người dùng xác nhận, không phải project đã được API xác minh. Hạn mức theo project/model, không theo số key.
 - Giữ thay đổi local, đọc AGENTS áp dụng trong checkout host trước khi sửa. Không ghi đè tài liệu khác hoặc xóa credential tự ý.
 - Sau thay đổi có ý nghĩa, cập nhật CURRENT-STATE.md: hành vi cuối, kiểm thử thực tế, điểm chưa xác minh và bước tiếp theo. Không chép toàn bộ hội thoại.
-- Khi có quyền host, đưa bản nguồn wrapper đã rà secret và test vào repo này để version hóa; hiện chưa được sao lưu ở đây. Không tái tạo mã từ mô tả rồi gọi đó là bản đang chạy.
+- Bản nguồn src/gemini-task nhận qua người dùng đã đối chiếu SHA-256 với host ngày 27/10/2026; xem REVIEW-20261027.md. tests/test_baseline.py là bộ test mới, không phải test cũ trên NAS. Khi có quyền host, tìm bộ test lịch sử và xác minh source còn hiện hành. Không tái tạo mã từ mô tả rồi gọi đó là bản đang chạy.
