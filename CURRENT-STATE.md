@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 6889)
-Total output lines: 356
-
 # Notes Firestore Production cutover — 27/10/2026
 
 **Cutover hoàn tất.** `hunghvt-notes.vercel.app` đang chạy Notes trên Firestore
@@ -134,7 +131,65 @@ account. Details and mobile console links:
 
 Notes commit `8e6d0dbfe63396fa2fc5b1e8c7e707a7db3cb66a` is local on branch
 `codex/notes-owner-open-experiment-20261027` at `/home/admin/Hunghvt-notes`.
-Nothing is pushed or deployed from Hunghvt-notes; do not migrate or cre…889 tokens truncated…otes-gcloud-home/.config/gcloud`. No ADC/account
+Nothing is pushed or deployed from Hunghvt-notes; do not migrate or create a cloud database
+until emulator parity, project authorization and cost/rollback are reviewed.
+
+### Native Firestore repository direction — 27/10/2026
+
+Continued on local branch `codex/notes-firestore-native-20261027`; compatibility
+adapter remains unchanged and Koofr remains active. Added an unwired native
+repository prototype and architecture/cost handoff in `Hunghvt-notes` and this
+repo’s `research/notes-firestore-20261027.md`. Focused Node 24 tests pass 8/8
+against an in-memory fake only; no emulator/cloud proof. Native code covers
+per-note CAS, idempotent saves, shared authorization/revoke, version history,
+chunk/hash validation and Inbox share guards. Folder/order/trash/purge and
+backup parity are not implemented yet and block integration. Gemini critique
+was one filtered advisory; Codex corrected unsupported fixed 1-write/sec and
+500-total-op claims against current official docs.
+
+No gcloud/firebase CLI or ADC was present in the checked NAS shell. Least-work
+cloud path is a synthetic namespaced probe from Cloud Shell on phone/iPad,
+using an existing authorized dedicated non-production project/database plus
+`roles/datastore.user` (project-level access); NAS ADC and Vercel production
+OIDC are separate setups. No billing, database, cloud
+call, migration, or deploy occurred. Full repository tests could not load six
+files because `iron-session` is absent; existing fixture cleanup reported only
+39 allowlisted synthetic folders removed and production root unchanged. Details
+and official links: `research/notes-firestore-20261027.md` and
+`Hunghvt-notes/docs/firestore-native-design.md`.
+
+### Isolated Cloud Shell smoke ready — 27/10/2026
+
+Updated Hunghvt-notes branch `codex/notes-firestore-cloudshell-20261027`, commit
+`ebd704d3a149f5756dbc8b9a41eda5f326efe09b` (GitHub). `npm ci` with the committed
+lockfile succeeded under Node 24; the repository's default test command now
+uses an offline harness that strips Koofr/OIDC configuration and blocks network
+requests outside loopback. Local Node 24 suite passed 163/163, and GitHub Actions
+was running the branch CI at handoff. Vercel's exact-branch auto-deploy flag is
+disabled; Vercel returned zero deployments for that branch. No Cloud Firestore
+probe has run yet.
+
+For the smallest cloud check, use an already existing dedicated non-production
+project with default Firestore Native DB and a user granted `roles/datastore.user`.
+On phone/iPad choose it in [Google Cloud Console](https://console.cloud.google.com/),
+open [Cloud Shell](https://shell.cloud.google.com/?show=terminal), and paste the
+fully prepared single command in `Hunghvt-notes/docs/FIRESTORE-CLOUD-SMOKE.md`.
+It downloads Node 24 only under `/tmp`, uses the selected `gcloud` project and
+Cloud Shell human auth, creates one random synthetic note/share, measures
+owner/save/CAS/share/revoke, then removes those exact documents. It will not
+create a project/database or enable billing. This path is separate from NAS ADC
+and Vercel production OIDC. See the branch's smoke guide; no secret or credential
+is needed in chat.
+
+### Native Firestore integration prepared — 27/10/2026
+
+Supersedes the Cloud Shell-only smoke instructions above for the next step: the
+user asked to avoid Cloud Shell and result relay. On NAS, installed official
+Google Cloud CLI 590.0.1 for Linux ARM64 under
+`/home/admin/.local/opt/notes-google-cloud-cli`; the downloaded archive SHA-256
+matched Google's published checksum. Wrapper `/home/admin/bin/notes-gcloud`
+uses only its isolated config home at
+`/home/admin/.local/state/notes-gcloud-home/.config/gcloud`. No ADC/account
 credential exists there yet, and no Gemini or other app credential was read.
 
 Hunghvt-notes safe branch
