@@ -1,5 +1,9 @@
 # Trạng thái ngày 27/10/2026
 
+## Xác minh wrapper Gemini — 28/10/2026
+
+Ngày 28/10, phiên NAS chạy trực tiếp wrapper hiện có `/home/admin/bin/gemini-task`; một lời gọi API thật tới `gemini-3.5-flash-lite` bằng alias được ghim trả phản hồi mong đợi. Không đọc/đổi key, không xoay key; lượt smoke test này chỉ xác nhận một alias/model tại thời điểm đó. Bài học tái sử dụng được lưu tại [GEMINI-API-WRAPPER-SMOKE-20261028.md](GEMINI-API-WRAPPER-SMOKE-20261028.md). Các nhận định riêng của ứng dụng vẫn phải lưu trong repo ứng dụng.
+
 ## Nguồn và mức xác minh
 
 Tổng hợp từ báo cáo Codex chạy trên NAS được người dùng chuyển tiếp trong hội thoại. Phiên ChatGPT không trực tiếp SSH vào NAS. Ngày 27/10/2026 (Asia/Ho_Chi_Minh), người dùng chuyển tiếp output --help/status, symlink và toàn bộ wrapper. Bản lưu src/gemini-task có SHA-256 khớp byte với checksum host được chuyển tiếp: 29481dc45c6461b5f993a29f7caba32871cd826c6885abcf99a4928652c8ec00. Đây là bằng chứng đối chiếu nội dung chuyển tiếp, không phải xác minh trực tiếp filesystem NAS.
@@ -52,6 +56,6 @@ Theo báo cáo dọn dẹp: gỡ patch/instrumentation, khôi phục bundle từ
 3. Kiểm tra bài Codex → Gemini phản biện → Codex tổng hợp; giới hạn 2 lượt.
 4. Giữ nguyên model hoạt động, không tiếp tục chẩn đoán OAuth/3.8 nếu không có yêu cầu mới.
 
-## Phạm vi repo — cập nhật 27/10/2026
+## Phạm vi repo
 
 Repo này chỉ quản lý công cụ Codex/Gemini, wrapper API, quota/retry và bài học phối hợp AI. Bàn giao/vận hành của từng ứng dụng lưu trong repo ứng dụng tương ứng. Các báo cáo Notes trước đây đã chuyển nguyên nội dung và đối chiếu Git blob sang [Hunghvt-notes](https://github.com/hunghvt-cyber/Hunghvt-notes/tree/main/docs/history/ai-nas-lab); không dùng các mốc Notes cũ trong lịch sử repo này như trạng thái runtime mới.
