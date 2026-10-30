@@ -35,6 +35,14 @@ Gọi tự động thì bỏ --key key1. Với --key chỉ định, wrapper khô
 
 Người dùng giao việc cho Codex trên NAS: “Làm việc này, nhờ Gemini phản biện trước khi chốt.” Codex đưa bối cảnh tối thiểu qua gemini-task, kiểm tra stdout và exit code, tự đánh giá phản hồi. Không truyền token/mật khẩu/file credential. Không cho Gemini tool hoặc quyền ghi file. Tối đa 2 lượt tư vấn mỗi nhiệm vụ mặc định.
 
+### Chia luồng an toàn và đo hiệu quả
+
+- Trước khi chạy đồng thời, đọc `--help` và kiểm tra wrapper có serialize model call hay khóa trạng thái dùng chung. Chỉ song song hóa câu hỏi độc lập; giữ mỗi luồng một key tường minh nếu cần cô lập quota.
+- Gửi cùng phạm vi/source nhưng không gửi dữ liệu người dùng, credential, session, log riêng hoặc ảnh có nội dung riêng. Gemini chỉ tư vấn; Codex xác minh nhận định trên code/test trước khi sửa.
+- Ghi thời điểm bắt đầu/kết thúc từng luồng, exit code, lỗi/retry và số luồng đồng thời. Thời gian chờ của một batch song song là thời gian tường trình của batch, không phải tổng thời lượng các luồng.
+- Đánh giá lợi ích bằng phát hiện cụ thể được xác minh và áp dụng. Ghi riêng nhận định sai/trùng lặp/bác bỏ; không suy ra tiết kiệm thời gian nếu không có baseline tương đương. Nếu review chỉ nhận mô tả screenshot thì không gọi đó là đã xem screenshot.
+- Chỉ dùng lượt follow-up khi code hoặc bằng chứng liên quan thay đổi; thu hẹp prompt vào phần đó thay vì lặp lại review toàn bộ.
+
 ## Khi lỗi
 
 - Chưa cấu hình key: từng gặp exit 78, stdout rỗng. Nhập key và chờ lưu thành công; không suy ra key bị Google từ chối.
