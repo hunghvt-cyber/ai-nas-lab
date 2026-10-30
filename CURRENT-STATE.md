@@ -59,3 +59,7 @@ Theo báo cáo dọn dẹp: gỡ patch/instrumentation, khôi phục bundle từ
 ## Phạm vi repo
 
 Repo này chỉ quản lý công cụ Codex/Gemini, wrapper API, quota/retry và bài học phối hợp AI. Bàn giao/vận hành của từng ứng dụng lưu trong repo ứng dụng tương ứng. Các báo cáo Notes trước đây đã chuyển nguyên nội dung và đối chiếu Git blob sang [Hunghvt-notes](https://github.com/hunghvt-cyber/Hunghvt-notes/tree/main/docs/history/ai-nas-lab); không dùng các mốc Notes cũ trong lịch sử repo này như trạng thái runtime mới.
+
+## Gemini coordination practice update — 2026-10-30
+
+A current NAS workflow verified the `gemini-task` wrapper before using pinned keys concurrently. Parallel calls worked for independent bounded analysis (three-way) and final review (two-way), with per-phase timing and targeted rechecks after changes. Keep the implementer responsible for source verification; the wrapper was text-only in that workflow, so image inspection claims had to stay with the local browser review. No comparative no-Gemini baseline existed, so no time saved was claimed. Reusable guidance: [Gemini wrapper coordination lessons](research/gemini-coordination-parallel-20261030.md). Task-specific evidence stays in its originating repository. This records one workflow, not a guarantee that wrapper concurrency or model behavior will remain unchanged; recheck help/source when relevant.
