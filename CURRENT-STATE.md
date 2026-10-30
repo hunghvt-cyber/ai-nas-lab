@@ -1,5 +1,9 @@
 # Trạng thái ngày 27/10/2026
 
+## Bài học điều phối review song song — 30/10/2026
+
+Runbook hiện ghi cách xác minh wrapper trước khi chia luồng, đo wall time đúng cho batch song song, tách nhận định từ mô tả ảnh khỏi việc xem ảnh thật, và chỉ follow-up khi bằng chứng liên quan đổi. Đây là hướng dẫn chung; bằng chứng và kết quả riêng của từng ứng dụng thuộc repo ứng dụng.
+
 ## Xác minh wrapper Gemini — 28/10/2026
 
 Ngày 28/10, phiên NAS chạy trực tiếp wrapper hiện có `/home/admin/bin/gemini-task`; một lời gọi API thật tới `gemini-3.5-flash-lite` bằng alias được ghim trả phản hồi mong đợi. Không đọc/đổi key, không xoay key; lượt smoke test này chỉ xác nhận một alias/model tại thời điểm đó. Bài học tái sử dụng được lưu tại [GEMINI-API-WRAPPER-SMOKE-20261028.md](GEMINI-API-WRAPPER-SMOKE-20261028.md). Các nhận định riêng của ứng dụng vẫn phải lưu trong repo ứng dụng.
